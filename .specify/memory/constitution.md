@@ -24,12 +24,13 @@ transport.
 Build the classic 108-card ruleset first (numbers, Skip, Reverse, Draw Two,
 Wild, Wild Draw Four, Uno-call + challenge). The 112-card variant (Swap
 Hands / Shuffle Hands / house-rule blank cards) is an optional add-on
-behind a room setting, not a blocker for MVP. No accounts/auth system
-beyond a display name + room code unless a later spec calls for it. No
-microservices, no message queue, no Redis, and no separate in-memory game
-store — a single Node process reads and writes game state directly in
-MongoDB for the small number of concurrent rooms this app will
-realistically see.
+behind a room setting, not a blocker for MVP. Identity is a lightweight
+name+email profile captured once per browser to key persistent stats —
+not a real auth system (no password, no verification, no sessions) unless
+a later spec calls for it. No microservices, no message queue, no Redis,
+and no separate in-memory game store — a single Node process reads and
+writes game state directly in MongoDB for the small number of concurrent
+rooms this app will realistically see.
 
 ### IV. Test What Can Break a Game
 Unit tests are mandatory for the pure game-rules engine (deck building,

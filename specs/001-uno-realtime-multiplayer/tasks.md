@@ -39,8 +39,9 @@ Monorepo per plan.md: `backend/src/`, `frontend/src/`, `shared/src/`.
 **⚠️ CRITICAL**: No user story work starts until this phase is done.
 
 - [ ] T008 Define shared wire types in `shared/src/events.ts` per
-      `contracts/socket-events.md` (Card, Color, CardType, Room, Game
-      client-view, all event payload interfaces)
+      `contracts/socket-events.md` and `contracts/rest-api.md` (Card,
+      Color, CardType, User, Room, Game client-view, all event/REST
+      payload interfaces)
 - [ ] T009 [P] Implement `backend/src/game/types.ts` (engine-internal
       types per `data-model.md`)
 - [ ] T010 [P] Implement `backend/src/game/deck.ts`: `buildDeck(options)`
@@ -158,35 +159,84 @@ steps 1-5 pass manually).
 
 ---
 
-## Phase 4: User Story 2 - Reconnect after a dropped connection (Priority: P2)
+## Phase 4: User Story 2 - First-login identity capture and persistent stats (Priority: P1)
+
+**Goal**: A new browser is asked for name + email before it can reach the
+Home screen; that identity is a `User` document in MongoDB, matched by
+email on return visits, and updated with stats at round/match end (spec
+Acceptance Scenarios 1-5).
+
+**Independent Test**: Clear storage, load the app, confirm the identity
+form blocks Home until submitted, confirm a `User` doc exists in MongoDB,
+reload and confirm the form doesn't reappear, play a round and confirm
+stats updated.
+
+### Tests for User Story 2
+
+- [ ] T041 [P] [US2] Unit test: user upsert-by-email (new email creates a
+      `User`; existing email returns the same `_id` and refreshes `name`)
+      in `backend/tests/unit/userService.test.ts`
+- [ ] T042 [P] [US2] Integration test: `POST /api/users` twice with the
+      same email returns the same `userId`; a malformed email is rejected
+      with 400, in `backend/tests/integration/identity.test.ts`
+- [ ] T043 [US2] Integration test: finishing a round updates the seated
+      players' `User.stats` (gamesPlayed/gamesWon/totalScore) in MongoDB,
+      in `backend/tests/integration/identity-stats.test.ts`
+
+### Implementation for User Story 2
+
+- [ ] T044 [US2] Implement `backend/src/models/User.ts` Mongoose schema
+      (`name`, unique-indexed `email`, `stats`) per `data-model.md`
+- [ ] T045 [US2] Implement `backend/src/services/UserService.ts`:
+      upsert-by-email, stats-update helper (depends on T044)
+- [ ] T046 [US2] Implement `POST /api/users` and `GET /api/users/:id/stats`
+      in `backend/src/routes/users.ts` (depends on T045)
+- [ ] T047 [US2] Wire `GameService` round/match-end to call
+      `UserService`'s stats update for every seated player's `userId`
+      (depends on T045, T028)
+- [ ] T048 [US2] Thread `userId` through `RoomService`/`room:join` so each
+      `Player` seat links back to its `User` (depends on T013, T045)
+- [ ] T049 [P] [US2] `frontend`: `IdentityGate` component — first-visit
+      modal for name + email, calls `POST /api/users`, stores
+      `{ userId, name, email }` in `localStorage`, wraps the app so
+      Home/Lobby/Game are unreachable until identity exists, in
+      `frontend/src/components/IdentityGate.tsx` (depends on T015)
+
+**Checkpoint**: User Stories 1 AND 2 both work — a new browser must
+identify itself before playing, and MongoDB tracks its stats across
+sessions.
+
+---
+
+## Phase 5: User Story 3 - Reconnect after a dropped connection (Priority: P2)
 
 **Goal**: A disconnected player resumes their seat/hand within the grace
 period without disrupting the table (spec Acceptance Scenarios 1-3).
 
 **Independent Test**: quickstart.md step 6.
 
-### Tests for User Story 2
+### Tests for User Story 3
 
-- [ ] T041 [P] [US2] Socket integration test: client disconnects mid-game,
+- [ ] T050 [P] [US3] Socket integration test: client disconnects mid-game,
       reconnects with stored `playerId` within grace period, receives
       correct hand/turn state, in
       `backend/tests/integration/reconnect.test.ts`
-- [ ] T042 [P] [US2] Socket integration test: grace period elapses without
+- [ ] T051 [P] [US3] Socket integration test: grace period elapses without
       reconnection → turn auto-skips/auto-draws and play continues, in
       `backend/tests/integration/reconnect-timeout.test.ts`
 
-### Implementation for User Story 2
+### Implementation for User Story 3
 
-- [ ] T043 [US2] Extend `RoomService`/`GameService` with grace-period timer
+- [ ] T052 [US3] Extend `RoomService`/`GameService` with grace-period timer
       per disconnected player (`settings.reconnectGraceSeconds`), emitting
       `player:presence` and auto-skip/auto-draw on timeout (depends on
       T013, T028)
-- [ ] T044 [US2] Persist `playerId` client-side (`localStorage`) and send
+- [ ] T053 [US3] Persist `playerId` client-side (`localStorage`) and send
       it on `room:join` for reconnect attempts, in
       `frontend/src/services/socket.ts` (depends on T014)
-- [ ] T045 [US2] `frontend`: "reconnecting..." indicator per player in
+- [ ] T054 [US3] `frontend`: "reconnecting..." indicator per player in
       `PlayerList`/`Game.tsx` (depends on T034)
-- [ ] T046 [US2] Integration test proving FR-012 recovery: kill and
+- [ ] T055 [US3] Integration test proving FR-012 recovery: kill and
       restart the backend process mid-round; since MongoDB is the only
       copy of game state (no in-memory store to rehydrate), the next
       request against the room simply continues from the persisted
@@ -194,12 +244,12 @@ period without disrupting the table (spec Acceptance Scenarios 1-3).
       `backend/tests/integration/restart-recovery.test.ts` (depends on
       T012, T028)
 
-**Checkpoint**: User Stories 1 AND 2 both work; a killed backend process
-recovers in-progress rooms from MongoDB on restart.
+**Checkpoint**: User Stories 1, 2, AND 3 all work; a killed backend
+process recovers in-progress rooms from MongoDB on restart.
 
 ---
 
-## Phase 5: User Story 3 - House rules and the 112-card variant (Priority: P3)
+## Phase 6: User Story 4 - House rules and the 112-card variant (Priority: P3)
 
 **Goal**: Host can enable the extra Wild cards and 2-player house rules
 before starting a game (spec Acceptance Scenarios 1-2).
@@ -207,44 +257,44 @@ before starting a game (spec Acceptance Scenarios 1-2).
 **Independent Test**: quickstart.md manual variant check (not covered by
 the base quickstart steps — toggle settings, start, inspect deck).
 
-### Tests for User Story 3
+### Tests for User Story 4
 
-- [ ] T047 [P] [US3] Unit test: `buildDeck({ includeSwapOrShuffle: 'swap',
+- [ ] T056 [P] [US4] Unit test: `buildDeck({ includeSwapOrShuffle: 'swap',
       customizableCount: 3 })` yields a 112-card deck with the right card
       mix, in `backend/tests/unit/deck.test.ts`
-- [ ] T048 [P] [US3] Unit test: 2-player house rules — Reverse acts as
+- [ ] T057 [P] [US4] Unit test: 2-player house rules — Reverse acts as
       Skip, Draw Two/Four returns turn to the drawer's opponent, in
       `backend/tests/unit/rules.test.ts`
 
-### Implementation for User Story 3
+### Implementation for User Story 4
 
-- [ ] T049 [US3] Extend `deck.ts` to build the 112-card variant (Swap
+- [ ] T058 [US4] Extend `deck.ts` to build the 112-card variant (Swap
       Hands / Shuffle Hands / Customizable cards) per research.md
-- [ ] T050 [US3] Implement Wild Swap Hands and Wild Shuffle Hands effects
+- [ ] T059 [US4] Implement Wild Swap Hands and Wild Shuffle Hands effects
       in `rules.ts`
-- [ ] T051 [US3] Implement 2-player house-rule branch in `rules.ts`
+- [ ] T060 [US4] Implement 2-player house-rule branch in `rules.ts`
       (Reverse-as-Skip, immediate turn return after forced draws)
-- [ ] T052 [P] [US3] `frontend`: room-settings form (variant toggle,
+- [ ] T061 [P] [US4] `frontend`: room-settings form (variant toggle,
       customizable card text inputs, 2-player house rules) in
       `frontend/src/pages/Lobby.tsx`
 
-**Checkpoint**: All three user stories independently functional.
+**Checkpoint**: All four user stories independently functional.
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T053 [P] Error boundary + toast/inline display for `game:error` in
+- [ ] T062 [P] Error boundary + toast/inline display for `game:error` in
       the frontend
-- [ ] T054 [P] `GET /api/health`-based "waking up the server" indicator on
+- [ ] T063 [P] `GET /api/health`-based "waking up the server" indicator on
       `Home.tsx` (plan.md deployment cold-start mitigation)
-- [ ] T055 Render deployment: `render.yaml` or dashboard config per
+- [ ] T064 Render deployment: `render.yaml` or dashboard config per
       plan.md Deployment Plan step 2
-- [ ] T056 Vercel deployment: `frontend/vercel.json` (or dashboard config)
+- [ ] T065 Vercel deployment: `frontend/vercel.json` (or dashboard config)
       per plan.md Deployment Plan step 3
-- [ ] T057 [P] Mobile-responsive layout pass on `Game.tsx`/`Hand.tsx`
+- [ ] T066 [P] Mobile-responsive layout pass on `Game.tsx`/`Hand.tsx`
       (target audience plays on phones)
-- [ ] T058 Run quickstart.md end-to-end manually against the deployed
+- [ ] T067 Run quickstart.md end-to-end manually against the deployed
       free-tier instances before calling MVP done
 
 ---
@@ -253,19 +303,26 @@ the base quickstart steps — toggle settings, start, inspect deck).
 
 - **Setup (Phase 1)** → **Foundational (Phase 2)** blocks all user
   stories.
-- **US1 (Phase 3)** has no dependency on US2/US3 and is the MVP.
-- **US2 (Phase 4)** depends on US1's `GameService`/socket handlers
-  existing (extends them) but is independently testable once present.
-- **US3 (Phase 5)** depends on Phase 2's `deck.ts`/`rules.ts` skeletons
-  but not on US2; can be built in parallel with US2 by a second
-  contributor.
-- **Polish (Phase 6)** depends on US1 at minimum; deployment tasks
-  (T055-T056) can happen as soon as US1's checkpoint is reached, ahead of
-  US2/US3, to get a demoable link out early.
+- **US1 (Phase 3)** has no dependency on US2/US3/US4 and is the core game
+  loop.
+- **US2 (Phase 4, Identity & Stats)** only needs Phase 2's REST scaffold
+  (T012, T015); it doesn't depend on US1's game logic. Per spec FR-019 it
+  must ship *before* the app is usable at all (it gates the Home screen),
+  so treat Phases 3+4 together as the real MVP even though they're
+  independently buildable/testable in either order.
+- **US3 (Phase 5, Reconnect)** depends on US1's `GameService`/socket
+  handlers existing (extends them) but is independently testable once
+  present.
+- **US4 (Phase 6, House rules)** depends on Phase 2's `deck.ts`/`rules.ts`
+  skeletons but not on US2/US3; can be built in parallel with either by a
+  second contributor.
+- **Polish (Phase 7)** depends on US1+US2 at minimum; deployment tasks
+  (T064-T065) can happen as soon as both checkpoints are reached, ahead of
+  US3/US4, to get a demoable link out early.
 
 ## Implementation Strategy
 
-**MVP first**: Phases 1-3 only → deploy (T055-T056) → demo to friends
-before building reconnection/variant polish. This matches the
-constitution's Simplicity principle and gets real feedback on the core
-loop fastest.
+**MVP first**: Phases 1-4 (Setup, Foundational, core game, identity &
+stats) → deploy (T064-T065) → demo to friends before building
+reconnection/variant polish. This matches the constitution's Simplicity
+principle and gets real feedback on the core loop fastest.

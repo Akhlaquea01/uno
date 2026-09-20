@@ -8,7 +8,7 @@ Types shared via `shared/src/events.ts`. Client → server events are
 
 | Event | Payload | Server behavior |
 |---|---|---|
-| `room:join` | `{ roomCode, playerId?, displayName }` | `playerId` present = reconnect attempt (FR-013); absent = new join. Rejects if room full/in-progress (unless reconnecting). |
+| `room:join` | `{ roomCode, userId, playerId?, displayName }` | `userId` is the caller's persistent identity from `POST /api/users`, used to link the seat's stats (FR-021). `playerId` present = reconnect attempt (FR-013); absent = new join. Rejects if room full/in-progress (unless reconnecting). |
 | `room:start` | `{ roomCode }` | Only host; requires 2-10 players; deals hands, seeds discard pile, applies first-card rules (FR-004). |
 | `game:play_card` | `{ roomCode, cardId, chosenColor? }` | Validated against `isLegalPlay`; `chosenColor` required iff card is a Wild variant. Rejected with `game:error` if illegal or out of turn. |
 | `game:draw_card` | `{ roomCode }` | Only current turn player; draws one card, may immediately follow with `game:play_card` for that same card. |

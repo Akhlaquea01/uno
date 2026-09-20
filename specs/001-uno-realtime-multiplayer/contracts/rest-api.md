@@ -2,10 +2,28 @@
 
 Non-realtime endpoints only (Constitution Principle II).
 
-## `POST /api/rooms`
-Create a room.
+## `POST /api/users` (first-login identity capture, FR-019/020)
+Creates a `User`, or matches one by email if it already exists. No
+password, no verification (spec.md Assumptions).
 
-Request: `{ hostDisplayName: string, settings?: Partial<RoomSettings> }`
+Request: `{ name: string, email: string }`
+
+Response `200`/`201`: `{ userId: string, name: string, email: string, stats: { gamesPlayed, gamesWon, totalScore } }`
+
+Response `400`: malformed email.
+
+## `GET /api/users/:id/stats`
+Fetch a user's persisted stats (e.g. for a profile/summary display).
+
+Response `200`: `{ name: string, stats: { gamesPlayed, gamesWon, totalScore } }`
+
+Response `404`: unknown `userId`.
+
+## `POST /api/rooms`
+Create a room. `userId` is the identity from `POST /api/users`, linking
+the host's seat to their persistent `User` record.
+
+Request: `{ userId: string, hostDisplayName: string, settings?: Partial<RoomSettings> }`
 
 Response `201`: `{ roomCode: string, playerId: string, joinUrl: string }`
 

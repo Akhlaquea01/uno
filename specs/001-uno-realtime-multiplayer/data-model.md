@@ -21,17 +21,36 @@ Number/action cards carry a concrete `color`; the four Wild variants carry
 `color: 'wild'` until played, at which point the *play* (not the card)
 records the chosen color as `Game.activeColor`.
 
+## User (persistent identity, MongoDB collection `users`)
+
+- `_id`
+- `name`
+- `email` (unique index — the key used to recognize a returning player;
+  no password/verification, see spec.md Assumptions)
+- `createdAt`
+- `stats: { gamesPlayed: number; gamesWon: number; totalScore: number }`
+  — updated by `GameService` at round/match end (FR-021); MongoDB is the
+  only copy, there is no client-side stats store.
+
+Captured once per browser via the first-login flow (FR-019/020); the
+resulting `_id` is stored client-side (`localStorage`) as `userId` and
+sent on every subsequent room create/join so a `Player` seat can be linked
+back to it.
+
 ## Player
 
 - `id` (socket-independent, persists across reconnects — generated on
   first join, stored client-side e.g. in `localStorage`, sent back on
   reconnect)
+- `userId` — references the seated person's `User._id` (see above); this
+  is what makes stats persist across rooms and sessions, distinct from the
+  room-scoped `id`
 - `displayName`
 - `socketId` (null while disconnected)
 - `connectionStatus`: `connected | reconnecting | disconnected`
 - `seat` (turn-order index, fixed once the game starts)
 - `isHost`
-- `matchScore` (running total across rounds)
+- `matchScore` (running total across rounds, scoped to this room)
 - `hand: Card[]` — **server-side only**, never serialized to other
   players; the player's own client receives their own hand.
 

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Realtime multiplayer Uno game to play with real friends, free-tier deployable, using MongoDB. Classic Uno rules (see rules doc)."
+**Input**: User description: "Realtime multiplayer Uno game to play with real friends, free-tier deployable, using MongoDB. Classic Uno rules (see rules doc). Data lives in MongoDB only (no separate in-memory store). Mobile play is landscape-first. On first login, capture name + email and persist stats against MongoDB."
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -61,7 +61,51 @@ correct round-end score screen. Delivers the core value end-to-end.
 
 ---
 
-### User Story 2 - Reconnect after a dropped connection (Priority: P2)
+### User Story 2 - First-login identity capture and persistent stats (Priority: P1)
+
+The first time someone opens the app on a browser/device, before they can
+create or join a room, they're asked for a display name and an email
+address. That identity is created (or matched, if the email was seen
+before) as a record in MongoDB, and every game they finish updates their
+win/loss/score stats against that same record. On later visits from the
+same browser, they are recognized automatically and go straight to
+creating/joining a room.
+
+**Why this priority**: Every player must pass through this before they can
+play at all, and it's what makes "your stats" mean anything across more
+than one sitting — without it every game is a throwaway. It gates User
+Story 1's flow, so it ships alongside it.
+
+**Independent Test**: Clear browser storage, open the app, confirm the
+name+email prompt appears before any room UI; submit it and confirm a
+`User` document now exists in MongoDB; reload the page and confirm the
+prompt does not reappear; play a full round (User Story 1) and confirm the
+`User` document's stats updated.
+
+**Acceptance Scenarios**:
+
+1. **Given** a browser with no stored identity, **When** the app loads,
+   **Then** a name + email form is shown before the Home screen (room
+   create/join) is reachable.
+2. **Given** the identity form, **When** the player submits a name and a
+   syntactically valid email, **Then** a `User` record is created in
+   MongoDB (or matched by email if one already exists with that email),
+   the identity is stored in the browser, and the player lands on the Home
+   screen.
+3. **Given** an email that already has a `User` record (e.g., the player
+   cleared storage and re-entered the same email, or is on a new device),
+   **When** they submit it, **Then** they are matched to the existing
+   record and its accumulated stats, not a new one.
+4. **Given** a returning visit from a browser with a stored identity,
+   **When** the app loads, **Then** the identity prompt is skipped and the
+   Home screen's display name is pre-filled from the stored identity.
+5. **Given** an identified player who finishes a round or a full match,
+   **When** the round/match ends, **Then** their `User` record's stats
+   (games played, games won, total score) are updated in MongoDB.
+
+---
+
+### User Story 3 - Reconnect after a dropped connection (Priority: P2)
 
 A player's phone locks or their WiFi blips mid-game. They reopen the room
 link within a grace period and rejoin the same seat with their hand intact,
@@ -92,7 +136,7 @@ table are unaffected.
 
 ---
 
-### User Story 3 - House rules and the 112-card variant (Priority: P3)
+### User Story 4 - House rules and the 112-card variant (Priority: P3)
 
 Before starting a game, the host can toggle optional rules: the 4 extra
 Wild cards (Swap Hands / Shuffle Hands / blank Customizable), stacking
@@ -141,6 +185,13 @@ settings, start a game, and confirm the deck size and card pool reflect the
   target at the end of a round.
 - What happens if two players click "join" with the same display name in
   one room? → Server appends a disambiguating suffix (e.g., "Sam (2)").
+- What happens if someone submits an obviously malformed email at first
+  login? → Client and server both reject it with an inline error; no
+  `User` record is created until a syntactically valid email is given.
+- What happens if two different people happen to type the same email? →
+  The system has no password or verification step (see Assumptions), so it
+  treats them as the same identity by design; this is an accepted
+  limitation for a private friend-group app, not a bug to fix in MVP.
 
 ## Requirements *(mandatory)*
 
@@ -180,8 +231,9 @@ settings, start a game, and confirm the deck size and card pool reflect the
 - **FR-011**: System MUST broadcast game state changes to all players in a
   room in real time, sending each player only their own hand's card
   values and everyone else's card counts.
-- **FR-012**: System MUST persist enough room/game state in MongoDB that an
-  in-progress game survives a server process restart.
+- **FR-012**: System MUST persist all room/game state directly in MongoDB
+  (the only copy — see Constitution Principle I) so an in-progress game
+  survives a server process restart with nothing to rehydrate.
 - **FR-013**: System MUST let a disconnected player rejoin the same room
   and seat within a configurable grace period (default 3 minutes) and
   resume with their existing hand and turn state intact.
@@ -200,15 +252,35 @@ settings, start a game, and confirm the deck size and card pool reflect the
   layout as the primary design target for mobile phones, and MUST prompt
   the player to rotate their device when a small-screen viewport is in
   portrait orientation, without hard-locking orientation.
+- **FR-019**: System MUST prompt a browser/device with no stored identity
+  for a display name and an email address before allowing room creation or
+  joining ("first login"), and MUST NOT show this prompt again once an
+  identity has been established for that browser.
+- **FR-020**: System MUST create a `User` record in MongoDB on first-login
+  submission, matching an existing record by email instead of creating a
+  duplicate when that email has been seen before.
+- **FR-021**: System MUST persist per-player match statistics (games
+  played, games won, total score) as fields on that player's `User`
+  document in MongoDB, updated at round/match end, with MongoDB as the
+  sole authoritative copy (no client-side stats store).
+- **FR-022**: System MUST NOT require a password or email verification for
+  first-login identity capture; email is used only as a stable identity
+  key (see Assumptions for the accepted tradeoff).
 
 ### Key Entities
 
+- **User**: A persistent player identity captured at first login — display
+  name, email (unique key used to recognize returning players), created
+  timestamp, and cumulative stats (games played, games won, total score).
+  Distinct from `Player` below: a `User` persists across every room and
+  session; a `Player` is that same person's seat within one room.
 - **Room**: A game lobby/table identified by a short code. Has a host, a
   list of players/seats, a status (lobby / in-progress / round-ended /
   match-ended), house-rule settings, and a target score.
-- **Player**: A participant in a room — display name, socket/session
-  binding, seat/turn order position, connection status (connected /
-  reconnecting / disconnected), running match score.
+- **Player**: A participant in a room — references the seated person's
+  `User` id, display name for this room, socket/session binding,
+  seat/turn order position, connection status (connected / reconnecting /
+  disconnected), running match score for this room.
 - **Game**: One active round's state within a room — the deck, draw pile,
   discard pile, each player's hand (server-only, never sent in full to
   other clients), current turn index, direction, current active color, and
@@ -225,7 +297,8 @@ settings, start a game, and confirm the deck size and card pool reflect the
 ### Measurable Outcomes
 
 - **SC-001**: A group of friends can go from "here's the link" to "playing
-  their first card" in under 60 seconds with no account creation.
+  their first card" in under 60 seconds, including one-time first-login
+  identity capture.
 - **SC-002**: A played card is reflected on every other connected player's
   screen within 500ms under normal home-internet conditions.
 - **SC-003**: A player who reconnects within the grace period resumes with
@@ -238,6 +311,9 @@ settings, start a game, and confirm the deck size and card pool reflect the
   resolution) has automated test coverage for every Action card and the
   Wild Draw Four challenge, with 0 known rule-violating states reachable
   through normal client actions.
+- **SC-006**: A returning player on the same browser never sees the
+  first-login prompt twice, and their MongoDB-tracked stats correctly
+  accumulate across at least 2 separate play sessions in manual testing.
 
 ## Assumptions
 
@@ -254,7 +330,12 @@ settings, start a game, and confirm the deck size and card pool reflect the
   Vercel/Netlify + MongoDB Atlas free cluster); it does not need to survive
   large-scale traffic, and a free-tier backend that cold-starts after
   inactivity is an acceptable tradeoff, mitigated by FR-012/FR-013.
-- No real-money stakes, accounts, or persistent user profiles are required
-  for MVP; a display name is sufficient identity within a room's lifetime.
+- First-login identity capture (FR-019/020) is a lightweight profile, not
+  authentication: no password, no email-ownership verification, no
+  session tokens beyond the identity stored in the browser. Anyone who
+  types a friend's email is treated as that friend. This is an accepted
+  tradeoff for a private friend-group app, not a security boundary; a real
+  auth system is out of scope unless a later spec calls for it.
 - The 112-card variant and other house rules (P3) can ship after the core
-  classic-rules loop (P1) and reconnection (P2) are solid.
+  classic-rules loop and identity capture (both P1) and reconnection (P2)
+  are solid.

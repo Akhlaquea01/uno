@@ -24,9 +24,10 @@ Atlas M0 — all $0/month.
 React 18, Vite, Zod (payload validation), nanoid (room codes).
 
 **Storage**: MongoDB Atlas free (M0) cluster via Mongoose — the single
-direct source of truth (no in-memory game cache). Collections: `rooms`,
-`games` (current round state, one doc per room, `version` field for
-optimistic concurrency), `roundResults`.
+direct source of truth (no in-memory game cache). Collections: `users`
+(persistent identity + stats, unique index on `email`), `rooms`, `games`
+(current round state, one doc per room, `version` field for optimistic
+concurrency), `roundResults`.
 
 **Testing**: Vitest for the game-rules engine (pure functions) and
 Socket.IO integration tests (`socket.io-client` against an in-memory test
@@ -104,10 +105,10 @@ backend/
 │   │   ├── rules.ts          # Move legality, effects, turn/direction
 │   │   ├── scoring.ts        # Round scoring per card-point table
 │   │   └── types.ts
-│   ├── models/               # Mongoose schemas: Room, Game, RoundResult
+│   ├── models/               # Mongoose schemas: User, Room, Game, RoundResult
 │   ├── sockets/               # Socket.IO event handlers (thin, call game/)
-│   ├── routes/                # REST: rooms, results
-│   ├── services/              # RoomService, GameService (orchestration + persistence)
+│   ├── routes/                # REST: users (identity), rooms, results
+│   ├── services/              # UserService, RoomService, GameService (orchestration + persistence)
 │   └── server.ts
 └── tests/
     ├── unit/                  # game/ engine tests (Vitest)
@@ -117,7 +118,8 @@ frontend/
 ├── src/
 │   ├── pages/                 # Home (create/join), Lobby, Game, RoundSummary
 │   ├── components/             # Card, Hand, DiscardPile, PlayerList, UnoButton,
-│   │                            # OrientationGate (landscape-first, rotate prompt)
+│   │                            # OrientationGate (landscape-first, rotate prompt),
+│   │                            # IdentityGate (first-login name+email capture)
 │   ├── hooks/                  # useSocket, useGameState, useOrientation
 │   ├── services/               # socket client, REST client
 │   └── App.tsx
