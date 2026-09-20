@@ -326,10 +326,11 @@ settings, start a game, and confirm the deck size and card pool reflect the
 - Most players will be on a phone held in landscape orientation; the UI is
   designed landscape-first for mobile, with portrait and desktop as
   secondary supported layouts (see FR-018).
-- "Free to deploy" means the app runs entirely on free tiers (Render/
-  Vercel/Netlify + MongoDB Atlas free cluster); it does not need to survive
-  large-scale traffic, and a free-tier backend that cold-starts after
-  inactivity is an acceptable tradeoff, mitigated by FR-012/FR-013.
+- "Free to deploy" means the whole app — one Docker container plus
+  MongoDB Atlas's free cluster — runs entirely on free tiers, with no
+  infrastructure of the user's own to provision; it does not need to
+  survive large-scale traffic, and a free-tier container that cold-starts
+  after inactivity is an acceptable tradeoff, mitigated by FR-012/FR-013.
 - First-login identity capture (FR-019/020) is a lightweight profile, not
   authentication: no password, no email-ownership verification, no
   session tokens beyond the identity stored in the browser. Anyone who

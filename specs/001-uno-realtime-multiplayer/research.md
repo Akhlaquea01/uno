@@ -18,16 +18,38 @@ benefit at this scale); Ably/Pusher (extra external free-tier account to
 manage, usage caps not worth it for a self-hosted Socket.IO that's already
 free).
 
+## Single Docker container vs. split frontend/backend hosting
+
+**Decision**: Package frontend + backend into one multi-stage Dockerfile;
+the backend (Express) serves the frontend's built static files itself,
+so the whole app is one Docker image and one deployed service.
+
+**Rationale**: Explicit product direction — no infrastructure of the
+user's own, and one deployable unit is simpler to reason about and
+redeploy than coordinating two services (frontend host + backend host)
+with matching CORS/env config. Same-origin also removes a class of
+CORS/cookie edge cases entirely in production.
+
+**Alternatives considered**: frontend on Vercel + backend on Render
+(the original plan) — rejected per explicit user direction toward a
+single container; also, Vercel's serverless functions have no persistent
+process for Socket.IO to hold connections/state in, so it was never a fit
+for the backend half regardless. A split does remain a documented fallback
+if the single-container image ever needs independent frontend scaling,
+but that's not a need at this project's scale.
+
 ## Free hosting for a stateful WebSocket backend
 
-**Decision**: Render free Web Service.
+**Decision**: Render free Web Service, Docker runtime, running the single
+image from the previous decision.
 
 **Rationale**: Render's free tier runs a persistent Node process capable
-of holding WebSocket connections and in-memory room state, which serverless
-platforms (Vercel/Netlify Functions) cannot do (no long-lived connections,
-no shared memory across invocations). Cold start after 15 minutes idle is
-the tradeoff, mitigated by the deployment plan's health-check/"waking up"
-UI and by MongoDB-backed state recovery.
+of holding open WebSocket connections, which serverless platforms
+(Vercel/Netlify Functions) cannot do (no long-lived connections between
+requests). Cold start after 15 minutes idle is the tradeoff, mitigated by
+the deployment plan's health-check/"waking up" UI; since MongoDB is the
+only copy of game state (see the direct-Mongo decision below), a cold
+start or restart never loses anything to recover.
 
 **Alternatives considered**: Vercel/Netlify serverless functions
 (incompatible with persistent Socket.IO connections and in-memory state);

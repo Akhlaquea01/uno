@@ -11,10 +11,13 @@ friend groups. A single Node/Express + Socket.IO server holds no separate
 game-state cache: every accepted player action is a direct
 read-validate-write against the room's document in MongoDB Atlas (free
 tier), and the resulting state is broadcast to a React (Vite) client over
-WebSockets. No auth beyond a display name + room code. The mobile game
-screen is designed landscape-first. Deploy backend to Render's free web
-service tier, frontend as a static site to Vercel, database on MongoDB
-Atlas M0 — all $0/month.
+WebSockets. Identity is a lightweight name+email capture on first login,
+persisted in MongoDB for cross-session stats — no password, no real auth.
+The mobile game screen is designed landscape-first. The frontend build and
+backend are packaged into **one Docker image** (Express serves the static
+frontend alongside the API/Socket.IO) and deployed as a single free
+container on Render, with MongoDB Atlas M0 as the only other moving part
+— all $0/month, and nothing for the user to host themselves.
 
 ## Technical Context
 
@@ -33,8 +36,12 @@ concurrency), `roundResults`.
 Socket.IO integration tests (`socket.io-client` against an in-memory test
 server); no e2e browser tests in MVP.
 
-**Target Platform**: Web (desktop + mobile browsers). Backend on Linux
-container (Render free web service). Frontend static hosting (Vercel).
+**Target Platform**: Web (desktop + mobile browsers). One Docker container
+(Express serving the API, Socket.IO, and the built frontend as static
+files) on Render's free Web Service tier — chosen over Vercel because
+Vercel's serverless model has no persistent process for Socket.IO to run
+in and doesn't host arbitrary Docker containers the way a stateful
+realtime server needs.
 
 **Project Type**: Web application (frontend + backend), monorepo with npm
 workspaces.
@@ -64,17 +71,18 @@ matchmaking or high concurrency.
   (`POST /api/rooms`) and history (`GET /api/rooms/:code/results`) are
   REST; everything else (join, play, draw, chat, presence) is Socket.IO.
 - ✅ **III. Simplicity & YAGNI** — MVP scope is the classic 108-card
-  ruleset (User Story 1+2); the 112-card variant (User Story 3) is a
-  later, additive module behind a room-settings flag, not built into the
-  core engine's assumptions.
+  ruleset plus lightweight identity capture (User Stories 1-2); the
+  112-card variant (User Story 4) is a later, additive module behind a
+  room-settings flag, not built into the core engine's assumptions.
 - ✅ **IV. Test What Can Break a Game** — `backend/src/game/*.test.ts`
   covers deck build/deal, move legality, every Action card, Wild Draw Four
   challenge, scoring, and turn/direction resolution before any UI work
   depends on them.
-- ✅ **V. Free-Tier Deployable** — stack chosen specifically for Render +
-  Vercel + Atlas free tiers; no Redis/queue; MongoDB is the direct store
-  for every accepted action (one write per turn-resolving action, not per
-  socket message), so a Render restart or cold start loses nothing.
+- ✅ **V. Free-Tier Deployable** — one Docker container on Render's free
+  tier plus Atlas free tier is the entire stack, nothing else to host or
+  pay for; no Redis/queue; MongoDB is the direct store for every accepted
+  action (one write per turn-resolving action, not per socket message),
+  so a Render restart or cold start loses nothing.
 - ✅ **VI. Mobile Landscape-First** — `frontend/src/pages/Game.tsx` and its
   CSS are built landscape-first; a small-screen portrait viewport gets a
   rotate-device prompt (FR-018), never a hard orientation lock.
@@ -130,6 +138,11 @@ shared/
 └── src/
     └── events.ts               # Shared TS types for Socket.IO event payloads
                                   # (imported by both backend and frontend)
+
+Dockerfile                      # Multi-stage: build shared+frontend+backend,
+                                  # final stage runs the backend, which serves
+                                  # frontend/dist as static files (single image)
+.dockerignore
 ```
 
 **Structure Decision**: npm-workspaces monorepo (`backend/`, `frontend/`,
@@ -139,22 +152,33 @@ between client and server. This directly serves Constitution Principle I:
 a single shared `events.ts` is what makes "server validates every intent"
 enforceable in TypeScript on both ends.
 
-## Deployment Plan (free tier)
+## Deployment Plan (single container, free tier)
 
 1. **MongoDB Atlas**: create free M0 cluster, one database `uno`, network
-   access allow-list `0.0.0.0/0` (or Render's static egress IPs if
-   available on free tier), connection string in `MONGODB_URI` env var.
-2. **Backend → Render**: new Web Service from the `backend/` directory
-   (or repo root with a build filter), build command
-   `npm install && npm run build -w backend`, start command
-   `npm run start -w backend`. Env vars: `MONGODB_URI`, `CORS_ORIGIN`
-   (the Vercel frontend URL), `PORT` (Render sets this).
-3. **Frontend → Vercel**: import repo, root directory `frontend/`, build
-   command `npm run build`, output `dist/`. Env var `VITE_SERVER_URL`
-   pointing at the Render backend URL.
-4. **Cold start mitigation**: frontend pings `GET /api/health` on load and
-   shows a "waking up the server" indicator until it responds, before
-   letting the user create/join a room.
+   access allow-list `0.0.0.0/0` (Atlas free tier has no static-IP
+   egress to allow-list against), connection string in `MONGODB_URI`.
+2. **`Dockerfile` (repo root, multi-stage)**:
+   - Stage `build`: install all workspaces, run `npm run build -w shared
+     -w backend -w frontend` (frontend emits static assets to
+     `frontend/dist`).
+   - Stage `runtime`: copy `backend`'s compiled output + `node_modules`,
+     copy `frontend/dist` into a path the backend serves as static files
+     (e.g. `backend/public`), `CMD ["node", "dist/server.js"]`.
+   - `backend/src/server.ts` serves `frontend/dist` via
+     `express.static(...)` and falls back to `index.html` for
+     client-side routes not matching `/api/*` or Socket.IO's path — this
+     is what makes it one deployable unit instead of two services.
+3. **Render**: one free **Web Service**, "Docker" runtime, pointed at the
+   repo root `Dockerfile`. Env vars: `MONGODB_URI`, `PORT` (Render sets
+   this; the server must read `process.env.PORT`). No `CORS_ORIGIN`/
+   cross-origin config needed in production — frontend and API are
+   served from the same origin. (`CORS_ORIGIN` is still used in local
+   dev, where the Vite dev server on a different port talks to the
+   backend directly — see quickstart.md.)
+4. **Cold start mitigation**: on load, the frontend pings `GET /api/health`
+   and shows a "waking up the server" indicator until it responds, before
+   letting the user create/join a room (Render's free tier spins the
+   container down after ~15 min idle).
 
 ## Complexity Tracking
 

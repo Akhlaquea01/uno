@@ -65,10 +65,12 @@ small screen instead.
   Every accepted move is one read-validate-write against the room's
   document; there is no separate in-memory authoritative copy to keep in
   sync.
-- **Hosting targets (free tier)**: backend on Render (or Railway/Fly.io free
-  tier) as a single web service; frontend on Vercel or Netlify; database on
-  MongoDB Atlas free cluster. Deployment docs must name one concrete choice,
-  not a menu.
+- **Hosting**: one Docker image containing both the built frontend (static
+  files) and the backend (Express serves them, plus the API and
+  Socket.IO), deployed as a single free container — no separate frontend
+  host, no infrastructure of the user's own to manage. Database on
+  MongoDB Atlas free cluster. Deployment docs must name one concrete
+  platform for that container, not a menu.
 - **No paid services** may be required for the app to function end-to-end.
 
 ## Development Workflow

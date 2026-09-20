@@ -51,7 +51,10 @@ Monorepo per plan.md: `backend/src/`, `frontend/src/`, `shared/src/`.
       `backend/src/models/Game.ts`, `backend/src/models/RoundResult.ts`
       Mongoose schemas per `data-model.md`
 - [ ] T012 Implement `backend/src/server.ts`: Express app + Socket.IO
-      server bootstrap, CORS config, MongoDB connection, `GET /api/health`
+      server bootstrap, CORS config (dev only), MongoDB connection,
+      `GET /api/health`, and (when `frontend/dist` is present, i.e. in the
+      Docker image) `express.static` + an SPA fallback route serving the
+      built frontend so one process serves everything
 - [ ] T013 Implement `backend/src/services/RoomService.ts`: create room
       (short unique code via nanoid), join/rejoin logic (reconnection
       handshake per `contracts/socket-events.md`), host-transfer on
@@ -288,10 +291,13 @@ the base quickstart steps — toggle settings, start, inspect deck).
       the frontend
 - [ ] T063 [P] `GET /api/health`-based "waking up the server" indicator on
       `Home.tsx` (plan.md deployment cold-start mitigation)
-- [ ] T064 Render deployment: `render.yaml` or dashboard config per
-      plan.md Deployment Plan step 2
-- [ ] T065 Vercel deployment: `frontend/vercel.json` (or dashboard config)
-      per plan.md Deployment Plan step 3
+- [ ] T064 Write the multi-stage root `Dockerfile` (+ `.dockerignore`):
+      build `shared`/`backend`/`frontend`, final stage runs the backend
+      serving `frontend/dist` as static files with an SPA fallback route,
+      per plan.md Deployment Plan step 2 (depends on T003, T004, T012)
+- [ ] T065 Render deployment: one free Web Service, Docker runtime,
+      pointed at the root `Dockerfile`; env vars `MONGODB_URI`, `PORT`
+      per plan.md Deployment Plan step 3 (depends on T064)
 - [ ] T066 [P] Mobile-responsive layout pass on `Game.tsx`/`Hand.tsx`
       (target audience plays on phones)
 - [ ] T067 Run quickstart.md end-to-end manually against the deployed
