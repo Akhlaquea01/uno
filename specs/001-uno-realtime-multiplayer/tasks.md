@@ -21,16 +21,16 @@ Monorepo per plan.md: `backend/src/`, `frontend/src/`, `shared/src/`.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Initialize npm workspaces monorepo (`package.json` root with
+- [X] T001 Initialize npm workspaces monorepo (`package.json` root with
       `workspaces: ["backend","frontend","shared"]`)
-- [ ] T002 Scaffold `shared/` TypeScript package with build config
-- [ ] T003 Scaffold `backend/` (Express + TypeScript + tsx/nodemon dev
+- [X] T002 Scaffold `shared/` TypeScript package with build config
+- [X] T003 Scaffold `backend/` (Express + TypeScript + tsx/nodemon dev
       script), `backend/.env.example` with `MONGODB_URI`, `PORT`,
       `CORS_ORIGIN`
-- [ ] T004 Scaffold `frontend/` with Vite + React + TypeScript
-- [ ] T005 [P] Configure ESLint + Prettier shared config at repo root
-- [ ] T006 [P] Configure Vitest for `backend/` and `frontend/`
-- [ ] T007 Add root `README.md` with the quickstart.md dev commands
+- [X] T004 Scaffold `frontend/` with Vite + React + TypeScript
+- [X] T005 [P] Configure ESLint + Prettier shared config at repo root
+- [X] T006 [P] Configure Vitest for `backend/` and `frontend/`
+- [X] T007 Add root `README.md` with the quickstart.md dev commands
 
 ---
 
@@ -38,30 +38,30 @@ Monorepo per plan.md: `backend/src/`, `frontend/src/`, `shared/src/`.
 
 **⚠️ CRITICAL**: No user story work starts until this phase is done.
 
-- [ ] T008 Define shared wire types in `shared/src/events.ts` per
+- [X] T008 Define shared wire types in `shared/src/events.ts` per
       `contracts/socket-events.md` and `contracts/rest-api.md` (Card,
       Color, CardType, User, Room, Game client-view, all event/REST
       payload interfaces)
-- [ ] T009 [P] Implement `backend/src/game/types.ts` (engine-internal
+- [X] T009 [P] Implement `backend/src/game/types.ts` (engine-internal
       types per `data-model.md`)
-- [ ] T010 [P] Implement `backend/src/game/deck.ts`: `buildDeck(options)`
+- [X] T010 [P] Implement `backend/src/game/deck.ts`: `buildDeck(options)`
       producing the classic 108-card deck by default (research.md deck
       variants decision) + Fisher-Yates shuffle
-- [ ] T011 Implement `backend/src/models/Room.ts`,
+- [X] T011 Implement `backend/src/models/Room.ts`,
       `backend/src/models/Game.ts`, `backend/src/models/RoundResult.ts`
       Mongoose schemas per `data-model.md`
-- [ ] T012 Implement `backend/src/server.ts`: Express app + Socket.IO
+- [X] T012 Implement `backend/src/server.ts`: Express app + Socket.IO
       server bootstrap, CORS config (dev only), MongoDB connection,
       `GET /api/health`, and (when `frontend/dist` is present, i.e. in the
       Docker image) `express.static` + an SPA fallback route serving the
       built frontend so one process serves everything
-- [ ] T013 Implement `backend/src/services/RoomService.ts`: create room
+- [X] T013 Implement `backend/src/services/RoomService.ts`: create room
       (short unique code via nanoid), join/rejoin logic (reconnection
       handshake per `contracts/socket-events.md`), host-transfer on
       disconnect (FR-014)
-- [ ] T014 [P] `frontend`: Socket.IO client wrapper in
+- [X] T014 [P] `frontend`: Socket.IO client wrapper in
       `frontend/src/services/socket.ts` and `useSocket` hook
-- [ ] T015 [P] `frontend`: REST client in `frontend/src/services/api.ts`
+- [X] T015 [P] `frontend`: REST client in `frontend/src/services/api.ts`
       for `POST /api/rooms`, `GET /api/rooms/:code/join`,
       `GET /api/health`
 
@@ -79,43 +79,54 @@ a correct score screen, per spec Acceptance Scenarios 1-8.
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Unit tests for `deck.ts` (deck size/composition,
+- [X] T016 [P] [US1] Unit tests for `deck.ts` (deck size/composition,
       shuffle produces a permutation) in `backend/tests/unit/deck.test.ts`
-- [ ] T017 [P] [US1] Unit tests for `backend/src/game/rules.ts`
+- [X] T017 [P] [US1] Unit tests for `backend/src/game/rules.ts`
       `isLegalPlay` covering: color match, number match, symbol match,
       Wild always legal, mismatch rejected — in
       `backend/tests/unit/rules.test.ts`
-- [ ] T018 [P] [US1] Unit tests for every Action card effect (Skip,
+- [X] T018 [P] [US1] Unit tests for every Action card effect (Skip,
       Reverse incl. direction flip, Draw Two forced draw + skip, Wild
       color choice, Wild Draw Four incl. challenge win/lose draw counts)
       in `backend/tests/unit/rules.test.ts`
-- [ ] T019 [P] [US1] Unit tests for `backend/src/game/scoring.ts` against
+- [X] T019 [P] [US1] Unit tests for `backend/src/game/scoring.ts` against
       the point table in spec.md FR-010, in
       `backend/tests/unit/scoring.test.ts`
-- [ ] T020 [P] [US1] Unit test for first-card-flip setup rules (Action
+- [X] T020 [P] [US1] Unit test for first-card-flip setup rules (Action
       card applies immediately, Wild lets first player choose color, Wild
       Draw Four reshuffled back in) in
       `backend/tests/unit/setup.test.ts`
-- [ ] T021 [US1] Socket integration test: two clients join a room, host
+- [X] T021 [US1] Socket integration test: two clients join a room, host
       starts, each receives correctly-scoped `game:state` (own hand vs.
       others' counts) in `backend/tests/integration/join-and-start.test.ts`
-- [ ] T022 [US1] Socket integration test: full round played
+      — written; not executed in this sandbox (see note below)
+- [X] T022 [US1] Socket integration test: full round played
       programmatically to a zero-card hand, asserts `game:round_ended`
       payload matches expected scores, in
-      `backend/tests/integration/full-round.test.ts`
+      `backend/tests/integration/full-round.test.ts` — written; not
+      executed in this sandbox (see note below)
+
+> **Note (dev-environment limitation)**: the socket integration tests
+> (T021/T022) need `mongodb-memory-server`, which downloads a real `mongod`
+> binary from `fastdl.mongodb.org` on first run. The sandbox this feature
+> was implemented in blocks that domain (and raw-TCP DB egress generally),
+> so these tests could not be executed there — they are written and
+> reviewed for correctness, but need a `npm test -w backend` run on a
+> machine with normal internet access (any CI runner or local dev machine)
+> to confirm they pass. All 42 unit tests (T016-T020) did run and pass.
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] Implement `backend/src/game/rules.ts`: `isLegalPlay`,
+- [X] T023 [US1] Implement `backend/src/game/rules.ts`: `isLegalPlay`,
       `applyPlay` (mutates/returns next Game state incl. Action effects),
       turn/direction resolution (depends on T009, T010)
-- [ ] T024 [US1] Implement `backend/src/game/scoring.ts`: round score
+- [X] T024 [US1] Implement `backend/src/game/scoring.ts`: round score
       calculation per FR-010 (depends on T009)
-- [ ] T025 [US1] Implement draw-pile exhaustion reshuffle (FR-008) inside
+- [X] T025 [US1] Implement draw-pile exhaustion reshuffle (FR-008) inside
       `rules.ts`'s draw handling
-- [ ] T026 [US1] Implement Uno-call state machine (`pendingUnoCall` set/
+- [X] T026 [US1] Implement Uno-call state machine (`pendingUnoCall` set/
       clear/catch + 2-card penalty, FR-009) in `rules.ts`
-- [ ] T027 [US1] Implement Wild Draw Four challenge resolution
+- [X] T027 [US1] Implement Wild Draw Four challenge resolution
       (`pendingChallenge`, FR-006) in `rules.ts`
 - [ ] T028 [US1] Implement `backend/src/services/GameService.ts`:
       orchestrates start-game (deal, seed discard, first-card rules) and
@@ -133,26 +144,29 @@ a correct score screen, per spec Acceptance Scenarios 1-8.
 - [ ] T031 [US1] Implement `POST /api/rooms`, `GET /api/rooms/:code/join`,
       `GET /api/rooms/:code/results` in `backend/src/routes/rooms.ts`
       (depends on T013)
-- [ ] T032 [P] [US1] `frontend`: Home page (create/join form) in
+- [X] T032 [P] [US1] `frontend`: Home page (create/join form) in
       `frontend/src/pages/Home.tsx`
-- [ ] T033 [P] [US1] `frontend`: Lobby page (player list, start button for
+- [X] T033 [P] [US1] `frontend`: Lobby page (player list, start button for
       host) in `frontend/src/pages/Lobby.tsx`
-- [ ] T034 [US1] `frontend`: Game page, built landscape-first (Constitution
+- [X] T034 [US1] `frontend`: Game page, built landscape-first (Constitution
       Principle VI) — discard pile centered, player list with card counts
       + turn indicator along the top, in `frontend/src/pages/Game.tsx`
-- [ ] T035 [P] [US1] `frontend`: `Hand` + `Card` components (own hand,
+- [X] T035 [P] [US1] `frontend`: `Hand` + `Card` components (own hand,
       click-to-play, color picker for Wilds) in
       `frontend/src/components/Hand.tsx`, `Card.tsx`
-- [ ] T036 [P] [US1] `frontend`: Draw-pile button + "UNO!" button +
+- [X] T036 [P] [US1] `frontend`: Draw-pile button + "UNO!" button +
       catch-uno control in `frontend/src/components/GameControls.tsx`
-- [ ] T037 [US1] `frontend`: `useGameState` hook wiring socket events to
+      (also covers Pass and Challenge, needed by the draw/challenge
+      mechanics implemented in rules.ts)
+- [X] T037 [US1] `frontend`: `useGameState` hook wiring socket events to
       React state (depends on T014, T008)
-- [ ] T038 [US1] `frontend`: RoundSummary page showing scores in
-      `frontend/src/pages/RoundSummary.tsx`
-- [ ] T039 [P] [US1] `frontend`: `useOrientation` hook
+- [X] T038 [US1] `frontend`: RoundSummary page showing scores in
+      `frontend/src/pages/RoundSummary.tsx` (reads `GET
+      /api/rooms/:code/results` so it survives a refresh/direct nav)
+- [X] T039 [P] [US1] `frontend`: `useOrientation` hook
       (`matchMedia('(orientation: portrait)')` detection, research.md
       landscape-first decision) in `frontend/src/hooks/useOrientation.ts`
-- [ ] T040 [US1] `frontend`: `OrientationGate` full-screen "rotate your
+- [X] T040 [US1] `frontend`: `OrientationGate` full-screen "rotate your
       device" overlay for small-screen portrait viewports, wrapping
       `Game.tsx`, plus the horizontal-scroll-strip hand layout for
       landscape (depends on T034, T035, T039)
@@ -176,30 +190,35 @@ stats updated.
 
 ### Tests for User Story 2
 
-- [ ] T041 [P] [US2] Unit test: user upsert-by-email (new email creates a
+- [X] T041 [P] [US2] Unit test: user upsert-by-email (new email creates a
       `User`; existing email returns the same `_id` and refreshes `name`)
-      in `backend/tests/unit/userService.test.ts`
-- [ ] T042 [P] [US2] Integration test: `POST /api/users` twice with the
+      in `backend/tests/unit/userService.test.ts` — written; needs a real
+      Mongo connection (mongodb-memory-server), not executed in this
+      sandbox, same as the Phase 3 note above
+- [X] T042 [P] [US2] Integration test: `POST /api/users` twice with the
       same email returns the same `userId`; a malformed email is rejected
-      with 400, in `backend/tests/integration/identity.test.ts`
-- [ ] T043 [US2] Integration test: finishing a round updates the seated
+      with 400, in `backend/tests/integration/identity.test.ts` — written,
+      not executed in this sandbox
+- [X] T043 [US2] Integration test: finishing a round updates the seated
       players' `User.stats` (gamesPlayed/gamesWon/totalScore) in MongoDB,
-      in `backend/tests/integration/identity-stats.test.ts`
+      in `backend/tests/integration/identity-stats.test.ts` — written, not
+      executed in this sandbox
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Implement `backend/src/models/User.ts` Mongoose schema
+- [X] T044 [US2] Implement `backend/src/models/User.ts` Mongoose schema
       (`name`, unique-indexed `email`, `stats`) per `data-model.md`
-- [ ] T045 [US2] Implement `backend/src/services/UserService.ts`:
+- [X] T045 [US2] Implement `backend/src/services/UserService.ts`:
       upsert-by-email, stats-update helper (depends on T044)
-- [ ] T046 [US2] Implement `POST /api/users` and `GET /api/users/:id/stats`
+- [X] T046 [US2] Implement `POST /api/users` and `GET /api/users/:id/stats`
       in `backend/src/routes/users.ts` (depends on T045)
-- [ ] T047 [US2] Wire `GameService` round/match-end to call
+- [X] T047 [US2] Wire `GameService` round/match-end to call
       `UserService`'s stats update for every seated player's `userId`
       (depends on T045, T028)
-- [ ] T048 [US2] Thread `userId` through `RoomService`/`room:join` so each
-      `Player` seat links back to its `User` (depends on T013, T045)
-- [ ] T049 [P] [US2] `frontend`: `IdentityGate` component — first-visit
+- [X] T048 [US2] Thread `userId` through `RoomService`/`room:join` so each
+      `Player` seat links back to its `User` (depends on T013, T045) —
+      done as part of the original RoomService/PlayerState implementation
+- [X] T049 [P] [US2] `frontend`: `IdentityGate` component — first-visit
       modal for name + email, calls `POST /api/users`, stores
       `{ userId, name, email }` in `localStorage`, wraps the app so
       Home/Lobby/Game are unreachable until identity exists, in

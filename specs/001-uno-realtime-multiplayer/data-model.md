@@ -77,9 +77,17 @@ back to it.
 - `turnIndex: number`, `direction: 1 | -1`
 - `pendingUnoCall: { playerId } | null` — set the instant a play leaves a
   player with exactly one card, cleared when they declare or are caught
-- `pendingChallenge: { playerId; hadLegalAlternative: boolean } | null` —
-  set when a Wild Draw Four is played, consumed by a challenge or by the
-  next player's turn starting (which forfeits the challenge window)
+- `pendingChallenge: { playerId; hadLegalAlternative: boolean;
+  targetPlayerId; drawnCardIds } | null` — set when a Wild Draw Four is
+  played (the 4-card draw is applied optimistically, `drawnCardIds`
+  records exactly which cards so a successful challenge can undo it),
+  consumed by a challenge or by the next player's turn starting (which
+  forfeits the challenge window)
+- `pendingDrawDecision: { playerId; cardId } | null` — set right after a
+  `game:draw_card` whose card was playable; the player's only legal next
+  actions are to play that exact card or `game:pass_turn` (implementation
+  detail behind the "if it's playable they may play it immediately,
+  otherwise their turn ends" rule — see `contracts/socket-events.md`)
 - `updatedAt` (used for the "checkpoint after each turn-resolving action"
   write pattern from research.md)
 

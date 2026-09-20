@@ -1,0 +1,345 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --panel: #1a1d24;
+  --panel-2: #22262f;
+  --text: #f4f4f5;
+  --muted: #9aa0a6;
+  --accent: #e63946;
+  --red: #e63946;
+  --yellow: #f4c430;
+  --green: #2a9d3f;
+  --blue: #1d6fd6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+button {
+  font-size: 1rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  padding: 0.6rem 0.9rem;
+}
+
+button {
+  background: var(--panel-2);
+  color: var(--text);
+  border-color: #3a3f4b;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.error {
+  color: var(--red);
+  cursor: pointer;
+}
+
+/* ---------- Identity gate / Home ---------- */
+
+.identity-gate,
+.home,
+.lobby,
+.round-summary {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+}
+
+.identity-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.home-section {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.home-join input {
+  flex: 1;
+}
+
+.player-list,
+.score-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.player-list li,
+.score-list li {
+  background: var(--panel);
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+}
+
+.score-list li.winner {
+  border-left: 4px solid var(--green);
+}
+
+.share-hint code {
+  background: var(--panel);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+/* ---------- Game page: landscape-first (Constitution Principle VI) ---------- */
+
+.game-page {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.opponent-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.opponent {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+  font-size: 0.85rem;
+  border: 2px solid transparent;
+}
+
+.opponent.active-turn {
+  border-color: var(--accent);
+}
+
+.opponent-name {
+  font-weight: 600;
+}
+
+.reconnecting {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.draw-pile {
+  width: 64px;
+  height: 92px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(45deg, #333, #333 6px, #2a2a2a 6px, #2a2a2a 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.discard-pile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.active-color-swatch {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+}
+
+.game-controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.uno-btn {
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+
+.challenge-btn {
+  background: var(--yellow);
+  color: #222;
+  font-weight: 700;
+}
+
+.catch-btn {
+  background: var(--blue);
+  color: white;
+}
+
+/* ---------- Hand / Card ---------- */
+
+.hand-strip {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.uno-card {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 92px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.uno-card-label {
+  font-weight: 800;
+  font-size: 1rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.uno-card-back {
+  background: repeating-linear-gradient(45deg, #333, #333 6px, #2a2a2a 6px, #2a2a2a 12px);
+}
+
+/* ---------- Color picker overlay ---------- */
+
+.color-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.color-picker {
+  background: var(--panel);
+  padding: 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: stretch;
+  min-width: 220px;
+}
+
+.color-swatch {
+  color: white;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.color-red {
+  background: var(--red);
+}
+.color-yellow {
+  background: var(--yellow);
+  color: #222;
+}
+.color-green {
+  background: var(--green);
+}
+.color-blue {
+  background: var(--blue);
+}
+.color-wild {
+  background: #2b2d31;
+}
+
+/* ---------- Rotate-device prompt (landscape-first, small screens only) ---------- */
+
+.rotate-prompt {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.rotate-icon {
+  font-size: 3rem;
+  animation: spin 2.5s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  z-index: 20;
+}
