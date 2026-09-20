@@ -146,7 +146,11 @@ export class GameService {
   }
 
   async playCard(roomCode: string, input: PlayCardInput): Promise<ActionOutcome> {
-    return this.runAction(roomCode, (state) => enginePlayCard(state, input));
+    const room = await RoomModel.findOne({ code: roomCode });
+    const houseRules = {
+      twoPlayerReverseIsSkip: Boolean(room?.settings.twoPlayerHouseRules) && room?.players.length === 2,
+    };
+    return this.runAction(roomCode, (state) => enginePlayCard(state, input, houseRules));
   }
 
   async drawCard(roomCode: string, playerId: string): Promise<ActionOutcome> {
@@ -158,6 +162,35 @@ export class GameService {
       enginePassTurn(state, playerId);
       return [];
     });
+  }
+
+  /** Grace-period expiry for a disconnected player (FR-013): draw if it's
+   * their turn and they haven't already, then pass — the least game-altering
+   * default since they're not present to choose. No-ops if it's not their
+   * turn by the time the timer fires. */
+  async autoSkipTurn(roomCode: string, playerId: string): Promise<ActionOutcome | null> {
+    try {
+      if (!(await this.isPlayersTurn(roomCode, playerId))) return null;
+      if (!(await this.hasPendingDrawDecision(roomCode, playerId))) {
+        await this.drawCard(roomCode, playerId);
+      }
+      if (await this.hasPendingDrawDecision(roomCode, playerId)) {
+        return await this.passTurn(roomCode, playerId);
+      }
+      return null;
+    } catch {
+      return null; // turn moved on / round ended between the check and the action — fine to skip
+    }
+  }
+
+  private async isPlayersTurn(roomCode: string, playerId: string): Promise<boolean> {
+    const doc = await GameModel.findOne({ roomCode });
+    return !!doc && doc.turnOrder[doc.turnIndex] === playerId;
+  }
+
+  private async hasPendingDrawDecision(roomCode: string, playerId: string): Promise<boolean> {
+    const doc = await GameModel.findOne({ roomCode });
+    return doc?.pendingDrawDecision?.playerId === playerId;
   }
 
   async callUno(roomCode: string, playerId: string): Promise<ActionOutcome> {

@@ -119,6 +119,31 @@ button:not(:disabled):hover {
   border-left: 4px solid var(--green);
 }
 
+.room-settings {
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.room-settings legend {
+  padding: 0 0.4rem;
+  color: var(--muted);
+}
+
+.checkbox-field {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox-field input {
+  width: auto;
+}
+
 .share-hint code {
   background: var(--panel);
   padding: 0.15rem 0.4rem;
@@ -331,6 +356,18 @@ button:not(:disabled):hover {
   to {
     transform: rotate(360deg);
   }
+}
+
+.error-boundary,
+.wake-gate {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
 }
 
 .toast {

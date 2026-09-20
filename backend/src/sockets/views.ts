@@ -2,6 +2,9 @@ import type { Server, Socket } from 'socket.io';
 import type { Card, GameErrorEvent, GameView, RoomView } from '@uno/shared';
 import { SOCKET_EVENTS } from '@uno/shared';
 import { IllegalActionError } from '../game/types';
+import { gameService } from '../services/GameService';
+import { RoomModel } from '../models/Room';
+import { scheduleAutoSkip } from '../services/reconnectTimers';
 
 export function buildRoomView(room: any): RoomView {
   return {
@@ -64,6 +67,26 @@ export function broadcastGameState(io: Server, room: any, game: any): void {
 
 export function broadcastRoomState(io: Server, room: any): void {
   io.to(room.code).emit(SOCKET_EVENTS.ROOM_STATE, buildRoomView(room));
+}
+
+/** If the turn has landed on a player who is (still) disconnected, (re)start
+ * their grace-period timer — covers the case where they weren't up yet at
+ * the moment they disconnected (FR-013). Idempotent: safe to call after
+ * every broadcast. */
+export function maybeScheduleAutoSkip(io: Server, room: any, game: any): void {
+  const turnPlayerId = game.turnOrder[game.turnIndex];
+  const player = room.players.find((p: any) => p.id === turnPlayerId);
+  if (!player || player.connectionStatus !== 'disconnected') return;
+
+  scheduleAutoSkip(room.code, turnPlayerId, room.settings.reconnectGraceSeconds, async () => {
+    const outcome = await gameService.autoSkipTurn(room.code, turnPlayerId);
+    if (!outcome) return;
+    const freshRoom = await RoomModel.findOne({ code: room.code });
+    if (freshRoom) {
+      broadcastGameState(io, freshRoom, outcome.game);
+      maybeScheduleAutoSkip(io, freshRoom, outcome.game);
+    }
+  });
 }
 
 export function emitError(socket: Socket, err: unknown): void {

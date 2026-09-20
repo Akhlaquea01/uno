@@ -59,6 +59,21 @@ export class RoomService {
     return { room, playerId };
   }
 
+  async updateSettings(roomCode: string, hostPlayerId: string, settings: Partial<RoomSettings>) {
+    const room = await RoomModel.findOne({ code: roomCode });
+    if (!room) throw new IllegalActionError('room_not_found', 'No room with that code exists.');
+    if (room.status !== 'lobby') {
+      throw new IllegalActionError('already_started', 'Settings can only be changed before the game starts.');
+    }
+    const host = room.players.find((p) => p.id === hostPlayerId);
+    if (!host?.isHost) {
+      throw new IllegalActionError('not_host', 'Only the host can change room settings.');
+    }
+    Object.assign(room.settings, settings);
+    await room.save();
+    return room;
+  }
+
   async preflightStatus(roomCode: string): Promise<'lobby' | 'in_progress' | 'full' | 'not_found'> {
     const room = await RoomModel.findOne({ code: roomCode });
     if (!room) return 'not_found';

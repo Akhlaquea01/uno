@@ -1,9 +1,16 @@
 import type { Server, Socket } from 'socket.io';
-import { SOCKET_EVENTS, type RoomJoinIntent, type RoomStartIntent, type NextRoundIntent } from '@uno/shared';
+import {
+  SOCKET_EVENTS,
+  type RoomJoinIntent,
+  type RoomStartIntent,
+  type RoomUpdateSettingsIntent,
+  type NextRoundIntent,
+} from '@uno/shared';
 import { roomService } from '../services/RoomService';
 import { gameService } from '../services/GameService';
 import { GameModel } from '../models/Game';
-import { broadcastGameState, broadcastRoomState, buildGameView, emitError } from './views';
+import { broadcastGameState, broadcastRoomState, buildGameView, emitError, maybeScheduleAutoSkip } from './views';
+import { clearAutoSkip } from '../services/reconnectTimers';
 
 export interface SocketSessionData {
   roomCode?: string;
@@ -28,6 +35,7 @@ export function registerRoomHandlers(io: Server, socket: Socket): void {
       session(socket).roomCode = room.code;
       session(socket).playerId = player.id;
       socket.join(room.code);
+      clearAutoSkip(room.code, player.id);
 
       broadcastRoomState(io, room);
       ack?.({ ok: true, playerId: player.id });
@@ -44,11 +52,23 @@ export function registerRoomHandlers(io: Server, socket: Socket): void {
     }
   });
 
+  socket.on(SOCKET_EVENTS.ROOM_UPDATE_SETTINGS, async (payload: RoomUpdateSettingsIntent) => {
+    try {
+      const pid = session(socket).playerId;
+      if (!pid) return;
+      const room = await roomService.updateSettings(payload.roomCode, pid, payload.settings);
+      broadcastRoomState(io, room);
+    } catch (err) {
+      emitError(socket, err);
+    }
+  });
+
   socket.on(SOCKET_EVENTS.ROOM_START, async (payload: RoomStartIntent) => {
     try {
       const { room, game } = await gameService.startGame(payload.roomCode);
       broadcastRoomState(io, room);
       broadcastGameState(io, room, game);
+      maybeScheduleAutoSkip(io, room, game);
     } catch (err) {
       emitError(socket, err);
     }
@@ -59,6 +79,7 @@ export function registerRoomHandlers(io: Server, socket: Socket): void {
       const { room, game } = await gameService.nextRound(payload.roomCode);
       broadcastRoomState(io, room);
       broadcastGameState(io, room, game);
+      maybeScheduleAutoSkip(io, room, game);
     } catch (err) {
       emitError(socket, err);
     }
@@ -71,6 +92,11 @@ export function registerRoomHandlers(io: Server, socket: Socket): void {
     if (room) {
       broadcastRoomState(io, room);
       io.to(roomCode).emit(SOCKET_EVENTS.PLAYER_PRESENCE, { playerId, connectionStatus: 'disconnected' });
+
+      if (room.status === 'in_progress') {
+        const gameDoc = await GameModel.findOne({ roomCode });
+        if (gameDoc) maybeScheduleAutoSkip(io, room, gameDoc);
+      }
     }
   });
 }

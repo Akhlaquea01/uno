@@ -241,6 +241,95 @@ describe('draw / pass', () => {
   });
 });
 
+describe('2-player house rules (User Story 4)', () => {
+  function twoPlayerGame(overrides: Partial<GameState> = {}): GameState {
+    return baseGame({
+      turnOrder: ['p1', 'p2'],
+      hands: { p1: [], p2: [] },
+      ...overrides,
+    });
+  }
+
+  it('without the house rule, Reverse just passes to the other player', () => {
+    const game = twoPlayerGame({
+      hands: { p1: [c('red', { kind: 'reverse' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')], p2: [] },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a' });
+    expect(game.turnIndex).toBe(1); // p2 — no house rule, so it's a plain pass
+  });
+
+  it('with the house rule, Reverse acts as Skip and returns the turn to the same player', () => {
+    const game = twoPlayerGame({
+      hands: { p1: [c('red', { kind: 'reverse' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')], p2: [] },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a' }, { twoPlayerReverseIsSkip: true });
+    expect(game.turnIndex).toBe(0); // back to p1
+  });
+
+  it('the house rule has no effect with 3+ players', () => {
+    const game = baseGame({
+      hands: { p1: [c('red', { kind: 'reverse' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')], p2: [], p3: [] },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a' }, { twoPlayerReverseIsSkip: true });
+    expect(game.direction).toBe(-1);
+    expect(game.turnIndex).toBe(2); // one step backward, same as the non-house-rule case
+  });
+
+  it('Draw Two already resumes back to the player who played it with exactly 2 players', () => {
+    const game = twoPlayerGame({
+      hands: { p1: [c('red', { kind: 'draw_two' }, 'p1-a')], p2: [] },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a' });
+    expect(game.hands.p2).toHaveLength(2);
+    expect(game.turnIndex).toBe(0); // back to p1 — falls out of the normal skip-by-2 math
+  });
+});
+
+describe('Wild Swap Hands / Wild Shuffle Hands (User Story 4)', () => {
+  it('swaps hands with the chosen player', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 7 }, 'p2-a'), c('green', { kind: 'number', value: 8 }, 'p2-b')],
+        p3: [],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue', targetPlayerId: 'p2' });
+    expect(game.hands.p1.map((c) => c.id)).toEqual(['p2-a', 'p2-b']);
+    expect(game.hands.p2.map((c) => c.id)).toEqual(['p1-b']);
+  });
+
+  it('rejects a missing or self target', () => {
+    const game = baseGame({
+      hands: { p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')], p2: [], p3: [] },
+    });
+    expect(() => playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' })).toThrow(/choose a player/i);
+  });
+
+  it('does not swap when it is the winning last card', () => {
+    const game = baseGame({
+      hands: { p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a')], p2: [c('blue', { kind: 'number', value: 7 }, 'p2-a')], p3: [] },
+    });
+    const events = playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue', targetPlayerId: 'p2' });
+    expect(events).toContainEqual({ type: 'round_ended', winnerId: 'p1' });
+    expect(game.hands.p2.map((c) => c.id)).toEqual(['p2-a']); // untouched
+  });
+
+  it('redeals all cards starting with the player to the left', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_shuffle_hands' }, 'p1-a'), c('red', { kind: 'number', value: 9 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 1 }, 'p2-a')],
+        p3: [c('green', { kind: 'number', value: 2 }, 'p3-a'), c('green', { kind: 'number', value: 3 }, 'p3-b')],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    const totalAfter = game.hands.p1.length + game.hands.p2.length + game.hands.p3.length;
+    expect(totalAfter).toBe(4); // p1-b, p2-a, p3-a, p3-b redistributed — nothing lost or duplicated
+    expect(game.turnIndex).toBe(1);
+  });
+});
+
 describe('Uno call / catch', () => {
   let game: GameState;
 

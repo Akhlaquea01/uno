@@ -162,10 +162,16 @@ export interface RoomJoinIntent {
 export interface RoomStartIntent {
   roomCode: string;
 }
+export interface RoomUpdateSettingsIntent {
+  roomCode: string;
+  settings: Partial<RoomSettings>;
+}
 export interface PlayCardIntent {
   roomCode: string;
   cardId: string;
   chosenColor?: Color;
+  /** Required when playing a Wild Swap Hands card (User Story 4). */
+  targetPlayerId?: string;
 }
 export interface DrawCardIntent {
   roomCode: string;
@@ -205,6 +211,7 @@ export interface GameErrorEvent {
 export const SOCKET_EVENTS = {
   ROOM_JOIN: 'room:join',
   ROOM_START: 'room:start',
+  ROOM_UPDATE_SETTINGS: 'room:update_settings',
   ROOM_NEXT_ROUND: 'room:next_round',
   ROOM_STATE: 'room:state',
   GAME_PLAY_CARD: 'game:play_card',

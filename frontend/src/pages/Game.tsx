@@ -96,8 +96,9 @@ export default function Game() {
           cards={game.hand}
           isMyTurn={isMyTurn && !awaitingStartColor}
           mustPlayCardId={myPendingDraw?.cardId ?? null}
-          onPlay={(cardId, chosenColor) =>
-            socket.emit(SOCKET_EVENTS.GAME_PLAY_CARD, { roomCode, cardId, chosenColor })
+          otherPlayers={room.players.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, displayName: p.displayName }))}
+          onPlay={(cardId, chosenColor, targetPlayerId) =>
+            socket.emit(SOCKET_EVENTS.GAME_PLAY_CARD, { roomCode, cardId, chosenColor, targetPlayerId })
           }
         />
 

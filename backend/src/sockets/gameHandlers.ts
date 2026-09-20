@@ -13,7 +13,7 @@ import {
 } from '@uno/shared';
 import { RoomModel } from '../models/Room';
 import { gameService, type ActionOutcome } from '../services/GameService';
-import { broadcastGameState, broadcastRoomState, emitError } from './views';
+import { broadcastGameState, broadcastRoomState, emitError, maybeScheduleAutoSkip } from './views';
 
 function toRoundResultView(doc: any): RoundResultView {
   return {
@@ -34,6 +34,7 @@ async function broadcastOutcome(io: Server, roomCode: string, outcome: ActionOut
   if (!room) return;
 
   broadcastGameState(io, room, outcome.game);
+  if (!outcome.roundEnded) maybeScheduleAutoSkip(io, room, outcome.game);
 
   if (outcome.roundEnded && outcome.roundResult) {
     io.to(roomCode).emit(SOCKET_EVENTS.GAME_ROUND_ENDED, toRoundResultView(outcome.roundResult));
@@ -73,6 +74,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         playerId: pid,
         cardId: payload.cardId,
         chosenColor: payload.chosenColor,
+        targetPlayerId: payload.targetPlayerId,
       });
       await broadcastOutcome(io, payload.roomCode, outcome);
     } catch (err) {

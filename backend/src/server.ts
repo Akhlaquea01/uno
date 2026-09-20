@@ -44,19 +44,32 @@ export function createApp(): { app: Express; httpServer: HttpServer; io: SocketI
   return { app, httpServer, io };
 }
 
-async function main() {
-  await connectMongo();
+function main(): void {
   const { httpServer } = createApp();
+  // Listen immediately so /api/health (and the static frontend) respond even
+  // while MongoDB is still connecting — this is what makes the frontend's
+  // "waking up the server" cold-start check work reliably. DB-backed routes
+  // will simply wait on Mongoose's command buffer until the connection is up.
   httpServer.listen(config.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Uno backend listening on :${config.port}`);
   });
+
+  // Deliberately not awaited/fatal: a slow or momentarily-unreachable MongoDB
+  // (e.g. Atlas cold-starting alongside Render) must not crash a process
+  // that's otherwise healthy. Mongoose keeps retrying in the background;
+  // DB-backed routes simply wait until it connects.
+  connectMongo()
+    .then(() => {
+      // eslint-disable-next-line no-console
+      console.log('Connected to MongoDB');
+    })
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('Initial MongoDB connection attempt failed, will keep retrying:', err.message);
+    });
 }
 
 if (require.main === module) {
-  main().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('Failed to start server', err);
-    process.exit(1);
-  });
+  main();
 }

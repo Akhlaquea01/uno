@@ -10,7 +10,8 @@ Types shared via `shared/src/events.ts`. Client → server events are
 |---|---|---|
 | `room:join` | `{ roomCode, userId, playerId?, displayName }` | `userId` is the caller's persistent identity from `POST /api/users`, used to link the seat's stats (FR-021). `playerId` present = reconnect attempt (FR-013); absent = new join. Rejects if room full/in-progress (unless reconnecting). |
 | `room:start` | `{ roomCode }` | Only host; requires 2-10 players; deals hands, seeds discard pile, applies first-card rules (FR-004). |
-| `game:play_card` | `{ roomCode, cardId, chosenColor? }` | Validated against `isLegalPlay`; `chosenColor` required iff card is a Wild variant. Rejected with `game:error` if illegal or out of turn. |
+| `room:update_settings` | `{ roomCode, settings: Partial<RoomSettings> }` | Only host, only while `status === 'lobby'` (FR-015). Merges into the room's settings; broadcasts `room:state`. |
+| `game:play_card` | `{ roomCode, cardId, chosenColor?, targetPlayerId? }` | Validated against `isLegalPlay`; `chosenColor` required iff card is a Wild variant; `targetPlayerId` required iff the card is Wild Swap Hands (112-card variant, User Story 4). Rejected with `game:error` if illegal or out of turn. |
 | `game:draw_card` | `{ roomCode }` | Only current turn player; draws one card. If it's playable, the turn does not advance — the player must next send `game:play_card` for that exact card or `game:pass_turn`. If it's not playable, the turn advances immediately. |
 | `game:pass_turn` | `{ roomCode }` | Only valid immediately after a `game:draw_card` whose card was playable but the player chooses not to play it; ends their turn. |
 | `game:choose_start_color` | `{ roomCode, color }` | Only the starting player, only when the round's first flipped card was a Wild and no color has been chosen yet (FR-004). |

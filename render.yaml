@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: uno
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # set this to your MongoDB Atlas connection string in the Render dashboard

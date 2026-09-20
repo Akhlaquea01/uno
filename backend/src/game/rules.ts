@@ -189,9 +189,16 @@ export interface PlayCardInput {
   playerId: string;
   cardId: string;
   chosenColor?: Color;
+  /** Required when playing a Wild Swap Hands card (User Story 4). */
+  targetPlayerId?: string;
 }
 
-export function playCard(game: GameState, input: PlayCardInput): EngineEvent[] {
+export interface HouseRuleOptions {
+  /** "For two players: Reverse works like Skip" — only meaningful with exactly 2 players. */
+  twoPlayerReverseIsSkip?: boolean;
+}
+
+export function playCard(game: GameState, input: PlayCardInput, houseRules: HouseRuleOptions = {}): EngineEvent[] {
   const events: EngineEvent[] = [];
   const { playerId, cardId } = input;
 
@@ -245,10 +252,12 @@ export function playCard(game: GameState, input: PlayCardInput): EngineEvent[] {
     case 'skip':
       if (!won) advanceTurn(game, 2);
       break;
-    case 'reverse':
+    case 'reverse': {
       game.direction = game.direction === 1 ? -1 : 1;
-      if (!won) advanceTurn(game, 1);
+      const twoPlayerSkip = houseRules.twoPlayerReverseIsSkip && game.turnOrder.length === 2;
+      if (!won) advanceTurn(game, twoPlayerSkip ? 2 : 1);
       break;
+    }
     case 'draw_two': {
       const targetId = game.turnOrder[nextIndex(game.turnIndex, game.direction, game.turnOrder.length, 1)];
       const drawn = drawCards(game, targetId, 2);
@@ -269,6 +278,44 @@ export function playCard(game: GameState, input: PlayCardInput): EngineEvent[] {
       events.push({ type: 'challenge_opened', byPlayerId: playerId });
       events.push({ type: 'penalty_draw', playerId: targetId, count: drawnCards.length, reason: 'wild_draw_four' });
       if (!won) advanceTurn(game, 2);
+      break;
+    }
+    case 'wild_swap_hands': {
+      // Per the rules doc: if this was your last card, you've already won —
+      // it plays like a plain Wild and no swap happens ("you would obviously
+      // not win the game if you were required to swap your hand").
+      if (!won) {
+        const targetId = input.targetPlayerId;
+        if (!targetId || !game.hands[targetId]) {
+          throw new IllegalActionError('target_required', 'Choose a player to swap hands with.');
+        }
+        if (targetId === playerId) {
+          throw new IllegalActionError('invalid_target', 'Choose a different player to swap with.');
+        }
+        const myHand = game.hands[playerId] ?? [];
+        const theirHand = game.hands[targetId];
+        game.hands[playerId] = theirHand;
+        game.hands[targetId] = myHand;
+        advanceTurn(game, 1);
+      }
+      break;
+    }
+    case 'wild_shuffle_hands': {
+      // Same last-card exception as Swap Hands above.
+      if (!won) {
+        const pool = shuffle(Object.values(game.hands).flat());
+        const order = game.turnOrder;
+        const newHands: Record<string, Card[]> = {};
+        for (const id of order) newHands[id] = [];
+        // Deal starting with the player to the left of whoever played it (rules doc).
+        let dealIdx = nextIndex(game.turnIndex, game.direction, order.length, 1);
+        for (const c of pool) {
+          newHands[order[dealIdx]].push(c);
+          dealIdx = nextIndex(dealIdx, game.direction, order.length, 1);
+        }
+        game.hands = newHands;
+        advanceTurn(game, 1);
+      }
       break;
     }
     default:

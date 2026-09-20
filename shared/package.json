@@ -2,10 +2,17 @@
   "name": "@uno/shared",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/events.js",
-  "types": "dist/events.d.ts",
+  "main": "dist/cjs/events.js",
+  "types": "dist/cjs/events.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/events.d.ts",
+      "import": "./dist/esm/events.js",
+      "require": "./dist/cjs/events.js"
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
