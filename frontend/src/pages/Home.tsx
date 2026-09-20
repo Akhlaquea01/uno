@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { getStoredIdentity } from '../services/identity';
+import { getStoredIdentity, setStoredPlayerId } from '../services/identity';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export default function Home() {
     setBusy(true);
     try {
       const res = await api.createRoom({ userId: identity.userId, hostDisplayName: displayName.trim() });
+      setStoredPlayerId(res.roomCode, res.playerId);
       navigate(`/room/${res.roomCode}/lobby`, { state: { displayName: displayName.trim() } });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the room.');
