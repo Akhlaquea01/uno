@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { SOCKET_EVENTS, type RoomSettings, type Variant112 } from '@uno/shared';
 import { useGameState } from '../hooks/useGameState';
 import { getStoredIdentity } from '../services/identity';
+import AppHeader from '../components/AppHeader';
 
 export default function Lobby() {
   const { roomCode = '' } = useParams();
@@ -46,60 +47,61 @@ export default function Lobby() {
 
   return (
     <div className="lobby">
-      <h1>Room {roomCode}</h1>
-      <p className="share-hint">
-        Share this link with friends: <code>{joinUrl}</code>
-      </p>
+      <AppHeader title="ROOM CODE" subtitle={roomCode} />
+      <div className="page-content">
+        <p className="share-hint">
+          Share this link with friends: <code>{joinUrl}</code>
+        </p>
 
-      {!teamMode && (
-        <ul className="player-list">
-          {players.map((p) => (
-            <li key={p.id}>
-              {p.displayName}
-              {p.isHost ? ' · host' : ''}
-              {p.id === playerId ? ' · you' : ''}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {teamMode && (
-        <div className="team-picker">
-          <p>{players.length === 4 ? 'Pick your team' : `Team mode needs exactly 4 players (${players.length}/4 joined)`}</p>
-          <div className="team-columns">
-            {([0, 1] as const).map((teamId) => (
-              <div key={teamId} className={`team-column team-${teamId}`}>
-                <h3>Team {teamId === 0 ? 'A' : 'B'}</h3>
-                <ul className="player-list">
-                  {players
-                    .filter((p) => p.teamId === teamId)
-                    .map((p) => (
-                      <li key={p.id}>
-                        {p.displayName}
-                        {p.isHost ? ' · host' : ''}
-                        {p.id === playerId ? ' · you' : ''}
-                      </li>
-                    ))}
-                </ul>
-                {playerId && players.find((p) => p.id === playerId)?.teamId !== teamId && (
-                  <button type="button" onClick={() => chooseTeam(teamId)}>
-                    Join Team {teamId === 0 ? 'A' : 'B'}
-                  </button>
-                )}
-              </div>
+        {!teamMode && (
+          <ul className="player-list">
+            {players.map((p) => (
+              <li key={p.id}>
+                {p.displayName}
+                {p.isHost ? ' · host' : ''}
+                {p.id === playerId ? ' · you' : ''}
+              </li>
             ))}
-          </div>
-          {players.some((p) => p.teamId === undefined) && (
-            <p className="team-hint">
-              {players.filter((p) => p.teamId === undefined).length} player(s) haven't picked a team yet.
-            </p>
-          )}
-        </div>
-      )}
+          </ul>
+        )}
 
-      {isHost && settingsDraft && (
-        <fieldset className="room-settings">
-          <legend>House rules (host only)</legend>
+        {teamMode && (
+          <div className="team-picker">
+            <p>{players.length === 4 ? 'Pick your team' : `Team mode needs exactly 4 players (${players.length}/4 joined)`}</p>
+            <div className="team-columns">
+              {([0, 1] as const).map((teamId) => (
+                <div key={teamId} className={`team-column team-${teamId}`}>
+                  <h3>Team {teamId === 0 ? 'A' : 'B'}</h3>
+                  <ul className="player-list">
+                    {players
+                      .filter((p) => p.teamId === teamId)
+                      .map((p) => (
+                        <li key={p.id}>
+                          {p.displayName}
+                          {p.isHost ? ' · host' : ''}
+                          {p.id === playerId ? ' · you' : ''}
+                        </li>
+                      ))}
+                  </ul>
+                  {playerId && players.find((p) => p.id === playerId)?.teamId !== teamId && (
+                    <button type="button" className="btn-outline" onClick={() => chooseTeam(teamId)}>
+                      Join Team {teamId === 0 ? 'A' : 'B'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {players.some((p) => p.teamId === undefined) && (
+              <p className="team-hint">
+                {players.filter((p) => p.teamId === undefined).length} player(s) haven't picked a team yet.
+              </p>
+            )}
+          </div>
+        )}
+
+        {isHost && settingsDraft && (
+          <fieldset className="room-settings">
+            <legend>House rules (host only)</legend>
 
           <label className="field">
             Target score to win the match
@@ -180,29 +182,34 @@ export default function Lobby() {
             2v2 Team Mode (exactly 4 players, 2 per team)
           </label>
 
-          <button type="button" onClick={applySettings}>
+          <button type="button" className="btn-outline" onClick={applySettings}>
             Save settings
           </button>
         </fieldset>
-      )}
+        )}
 
-      {isHost ? (
-        <button disabled={!canStart} onClick={() => socket.emit(SOCKET_EVENTS.ROOM_START, { roomCode })}>
-          {canStart
-            ? 'Start game'
-            : teamMode
-              ? 'Waiting for 4 players, 2 per team…'
-              : 'Waiting for at least 2 players…'}
-        </button>
-      ) : (
-        <p>Waiting for the host to start…</p>
-      )}
+        {isHost ? (
+          <button
+            className="btn-primary"
+            disabled={!canStart}
+            onClick={() => socket.emit(SOCKET_EVENTS.ROOM_START, { roomCode })}
+          >
+            {canStart
+              ? 'Start game'
+              : teamMode
+                ? 'Waiting for 4 players, 2 per team…'
+                : 'Waiting for at least 2 players…'}
+          </button>
+        ) : (
+          <p>Waiting for the host to start…</p>
+        )}
 
-      {error && (
-        <p className="error" onClick={clearError}>
-          {error.message}
-        </p>
-      )}
+        {error && (
+          <p className="error" onClick={clearError}>
+            {error.message}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

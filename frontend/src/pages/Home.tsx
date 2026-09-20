@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { getStoredIdentity, setStoredPlayerId } from '../services/identity';
+import AppHeader from '../components/AppHeader';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -47,32 +48,35 @@ export default function Home() {
 
   return (
     <div className="home">
-      <h1>Uno</h1>
+      <AppHeader subtitle="Play a round with friends" />
+      <div className="page-content">
+        <div className="panel">
+          <label className="field">
+            Your name
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} />
+          </label>
 
-      <label className="field">
-        Your name
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} />
-      </label>
+          <section className="home-section">
+            <button className="btn-primary" onClick={createRoom} disabled={busy}>
+              Create a room
+            </button>
+          </section>
 
-      <section className="home-section">
-        <button onClick={createRoom} disabled={busy}>
-          Create a room
-        </button>
-      </section>
+          <section className="home-section home-join">
+            <input
+              placeholder="Room code"
+              value={roomCodeInput}
+              onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
+              maxLength={6}
+            />
+            <button className="btn-outline" onClick={joinRoom} disabled={busy}>
+              Join
+            </button>
+          </section>
 
-      <section className="home-section home-join">
-        <input
-          placeholder="Room code"
-          value={roomCodeInput}
-          onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
-          maxLength={6}
-        />
-        <button onClick={joinRoom} disabled={busy}>
-          Join
-        </button>
-      </section>
-
-      {error && <p className="error">{error}</p>}
+          {error && <p className="error">{error}</p>}
+        </div>
+      </div>
     </div>
   );
 }

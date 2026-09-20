@@ -1,3 +1,4 @@
+import { Plus, Check, ShieldAlert, ShieldCheck, Hand as HandIcon, SkipForward } from 'lucide-react';
 import type { GameView, RoomView } from '@uno/shared';
 
 export interface GameControlsProps {
@@ -35,33 +36,33 @@ export default function GameControls({
   return (
     <div className="game-controls">
       {isMyTurn && !iMustDecide && !game.pendingChallenge && (
-        <button type="button" onClick={onDraw}>
-          Draw
+        <button type="button" className="draw-button" onClick={onDraw}>
+          <Plus /> Draw card
         </button>
       )}
       {iMustDecide && (
-        <button type="button" onClick={onPass}>
-          Pass
+        <button type="button" className="draw-button" onClick={onPass}>
+          <SkipForward /> Pass
         </button>
       )}
       {iCanChallenge && (
         <>
           <button type="button" className="challenge-btn" onClick={onChallenge}>
-            Challenge!
+            <ShieldAlert /> Challenge!
           </button>
           <button type="button" className="accept-btn" onClick={onDeclineChallenge}>
-            Accept the draw
+            <ShieldCheck /> Accept the draw
           </button>
         </>
       )}
       {iCanCallUno && (
-        <button type="button" className="uno-btn" onClick={onCallUno}>
-          UNO!
+        <button type="button" className="uno-button" onClick={onCallUno}>
+          <Check /> UNO
         </button>
       )}
       {catchTarget && (
         <button type="button" className="catch-btn" onClick={() => onCatchUno(catchTarget.id)}>
-          Catch {catchTarget.displayName}!
+          <HandIcon /> Catch {catchTarget.displayName}!
         </button>
       )}
     </div>
