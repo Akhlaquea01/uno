@@ -7,13 +7,14 @@
 ## Summary
 
 Build a browser-based, realtime multiplayer Uno game for small private
-friend groups. A single Node/Express + Socket.IO server holds authoritative
-in-memory game state per room, checkpoints it to MongoDB Atlas (free tier)
-on every state-changing event for crash/restart recovery, and broadcasts
-diffs to a React (Vite) client over WebSockets. No auth beyond a display
-name + room code. Deploy backend to Render's free web service tier,
-frontend as a static site to Vercel, database on MongoDB Atlas M0 — all
-$0/month.
+friend groups. A single Node/Express + Socket.IO server holds no separate
+game-state cache: every accepted player action is a direct
+read-validate-write against the room's document in MongoDB Atlas (free
+tier), and the resulting state is broadcast to a React (Vite) client over
+WebSockets. No auth beyond a display name + room code. The mobile game
+screen is designed landscape-first. Deploy backend to Render's free web
+service tier, frontend as a static site to Vercel, database on MongoDB
+Atlas M0 — all $0/month.
 
 ## Technical Context
 
@@ -22,8 +23,10 @@ $0/month.
 **Primary Dependencies**: Express, Socket.IO (server + client), Mongoose,
 React 18, Vite, Zod (payload validation), nanoid (room codes).
 
-**Storage**: MongoDB Atlas free (M0) cluster via Mongoose. Collections:
-`rooms`, `games` (current round state, one live doc per room), `roundResults`.
+**Storage**: MongoDB Atlas free (M0) cluster via Mongoose — the single
+direct source of truth (no in-memory game cache). Collections: `rooms`,
+`games` (current round state, one doc per room, `version` field for
+optimistic concurrency), `roundResults`.
 
 **Testing**: Vitest for the game-rules engine (pure functions) and
 Socket.IO integration tests (`socket.io-client` against an in-memory test
@@ -68,9 +71,12 @@ matchmaking or high concurrency.
   challenge, scoring, and turn/direction resolution before any UI work
   depends on them.
 - ✅ **V. Free-Tier Deployable** — stack chosen specifically for Render +
-  Vercel + Atlas free tiers; no Redis/queue; MongoDB is used for
-  checkpointing, not as a per-card-move hot path (writes are debounced to
-  one write per turn-resolving action, not per socket message).
+  Vercel + Atlas free tiers; no Redis/queue; MongoDB is the direct store
+  for every accepted action (one write per turn-resolving action, not per
+  socket message), so a Render restart or cold start loses nothing.
+- ✅ **VI. Mobile Landscape-First** — `frontend/src/pages/Game.tsx` and its
+  CSS are built landscape-first; a small-screen portrait viewport gets a
+  rotate-device prompt (FR-018), never a hard orientation lock.
 
 No violations; Complexity Tracking is empty.
 
@@ -110,8 +116,9 @@ backend/
 frontend/
 ├── src/
 │   ├── pages/                 # Home (create/join), Lobby, Game, RoundSummary
-│   ├── components/             # Card, Hand, DiscardPile, PlayerList, UnoButton
-│   ├── hooks/                  # useSocket, useGameState
+│   ├── components/             # Card, Hand, DiscardPile, PlayerList, UnoButton,
+│   │                            # OrientationGate (landscape-first, rotate prompt)
+│   ├── hooks/                  # useSocket, useGameState, useOrientation
 │   ├── services/               # socket client, REST client
 │   └── App.tsx
 └── tests/

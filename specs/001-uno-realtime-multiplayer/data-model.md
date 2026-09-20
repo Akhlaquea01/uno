@@ -45,9 +45,13 @@ records the chosen color as `Game.activeColor`.
   twoPlayerHouseRules: boolean; reconnectGraceSeconds: number }`
 - `createdAt`
 
-## Game (one live document per in-progress room)
+## Game (one MongoDB document per in-progress room — the only copy of this state; no in-memory duplicate)
 
 - `roomCode`
+- `version: number` — incremented on every write; each action's
+  `findOneAndUpdate` includes `{ version: expectedVersion }` in its filter
+  so a stale/duplicate action (e.g. a double-click) fails instead of
+  silently overwriting a newer state
 - `deck: Card[]` (draw pile, server-only)
 - `discardPile: Card[]` (top = last played)
 - `activeColor: Color` (the color in effect, relevant when top card is Wild)

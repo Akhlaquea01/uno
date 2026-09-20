@@ -38,24 +38,32 @@ documented default).
 
 ## Database: MongoDB Atlas free tier usage pattern
 
-**Decision**: MongoDB is a checkpoint/recovery + history store, not the
-per-move hot path. Server keeps authoritative state in memory; it writes
-to Mongo after each turn-resolving action (a card played, a draw that ends
-the turn, a round ending) — not on every socket message (e.g. not on
-cursor/typing-style chatter, since this app has none, but the principle
-carries to any future ephemeral events).
+**Decision**: MongoDB is the single, direct store for room/game state —
+no separate in-memory authoritative copy. Each accepted player action
+(play, draw, call/catch Uno, challenge) does one
+read-validate-mutate-`findOneAndUpdate` round trip against the room's
+`games` document, guarded by a `version` field (optimistic concurrency:
+the update only applies if `version` still matches what was read,
+preventing two rapid double-clicks from both being applied). The updated
+document is then broadcast over Socket.IO.
 
-**Rationale**: Atlas M0 has connection and storage limits; batching writes
-to once-per-turn keeps well within them even for several simultaneous
-rooms, satisfies FR-012 (crash recovery), and avoids adding write latency
-to the player-facing move loop (which is served from memory first, then
-persisted).
+**Rationale**: The user explicitly wants one place holding the data
+(MongoDB), not a duplicated in-memory model that has to be kept in sync
+and rehydrated on restart — that duplication is unneeded complexity at
+this project's scale (Constitution Principle III). A single Mongo
+round-trip per action is well within Atlas M0's connection/throughput
+limits for a handful of concurrent friend-group rooms, and Uno is a
+turn-based game (seconds between actions, not frames-per-second), so the
+extra tens-of-milliseconds latency versus an in-memory read is not
+user-perceptible and still comfortably meets the <500ms broadcast target
+(SC-002). It also makes crash/restart recovery (FR-012) automatic: there
+is nothing to rehydrate, the next read simply comes from Mongo.
 
-**Alternatives considered**: writing every socket event to Mongo (simplest
-but adds latency to every move and risks hitting free-tier connection
-limits under multiple concurrent rooms); using MongoDB Atlas's free-tier
-built-in change streams for broadcasting (unnecessary — Socket.IO already
-broadcasts in-process; would add complexity for no benefit at this scale).
+**Alternatives considered**: in-memory authoritative state checkpointed to
+Mongo (rejected per explicit product direction — two sources of truth to
+keep in sync, and rehydration-on-boot logic, for no real benefit at this
+scale); MongoDB change streams for broadcasting (unnecessary — Socket.IO
+already broadcasts in-process; would add complexity for no benefit here).
 
 ## Move-legality & Wild Draw Four challenge implementation
 
@@ -70,6 +78,30 @@ hand).
 **Rationale**: Keeps the engine deterministic and testable per
 Constitution Principle IV; avoids a race where the player draws/plays
 again before a challenge resolves.
+
+## Mobile orientation: landscape-first layout
+
+**Decision**: Design `Game.tsx` for landscape phone dimensions first
+(discard pile centered, hand as a horizontally scrollable strip along the
+bottom, opponent avatars/counts along the top). Detect portrait on a
+small screen via `matchMedia('(orientation: portrait)')` in a
+`useOrientation` hook and show a full-screen "rotate your device" overlay
+via an `OrientationGate` component — do not use the Screen Orientation
+Lock API to force landscape.
+
+**Rationale**: The target audience plays on phones held horizontally
+(explicit product direction). The Screen Orientation Lock API requires
+fullscreen mode on most browsers and is unsupported on iOS Safari, so a
+soft prompt is the only cross-platform-reliable option. Desktop and
+portrait still render a usable (if secondary) layout so the app isn't
+broken for anyone who ignores the prompt.
+
+**Alternatives considered**: CSS-only `@media (orientation: portrait)`
+rotation trick (transforms the whole page 90°, which fights the browser's
+own UI chrome and scroll behavior — worse UX than asking the user to
+physically rotate); enforcing landscape via the Fullscreen + Orientation
+Lock API combo (unreliable across browsers, adds a fullscreen requirement
+most players won't expect from a casual card game link).
 
 ## Deck variants (108 vs 112 cards)
 

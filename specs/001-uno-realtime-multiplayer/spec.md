@@ -196,6 +196,10 @@ settings, start a game, and confirm the deck size and card pool reflect the
 - **FR-017**: System MUST validate that a player only ever acts on their
   own turn; out-of-turn actions are rejected server-side regardless of
   what the client sends.
+- **FR-018**: System MUST present the game screen in a landscape-optimized
+  layout as the primary design target for mobile phones, and MUST prompt
+  the player to rotate their device when a small-screen viewport is in
+  portrait orientation, without hard-locking orientation.
 
 ### Key Entities
 
@@ -243,6 +247,9 @@ settings, start a game, and confirm the deck size and card pool reflect the
   against casual cheating.
 - Players access the game from modern desktop or mobile browsers; no
   native mobile app is in scope.
+- Most players will be on a phone held in landscape orientation; the UI is
+  designed landscape-first for mobile, with portrait and desktop as
+  secondary supported layouts (see FR-018).
 - "Free to deploy" means the app runs entirely on free tiers (Render/
   Vercel/Netlify + MongoDB Atlas free cluster); it does not need to survive
   large-scale traffic, and a free-tier backend that cold-starts after

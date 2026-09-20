@@ -114,10 +114,12 @@ a correct score screen, per spec Acceptance Scenarios 1-8.
 - [ ] T027 [US1] Implement Wild Draw Four challenge resolution
       (`pendingChallenge`, FR-006) in `rules.ts`
 - [ ] T028 [US1] Implement `backend/src/services/GameService.ts`:
-      orchestrates start-game (deal, seed discard, first-card rules),
-      wraps `rules.ts` calls with Mongo checkpoint writes (research.md
-      write-batching decision), computes round-end and match-end
-      transitions (depends on T023-T027, T011)
+      orchestrates start-game (deal, seed discard, first-card rules) and
+      every subsequent action as a single MongoDB
+      read-validate-`findOneAndUpdate(version)` round trip wrapping
+      `rules.ts` calls (research.md direct-Mongo decision, data-model.md
+      `version` field) — no in-memory game state, computes round-end and
+      match-end transitions (depends on T023-T027, T011)
 - [ ] T029 [US1] Implement `backend/src/sockets/roomHandlers.ts`:
       `room:join`, `room:start` (depends on T013, T028)
 - [ ] T030 [US1] Implement `backend/src/sockets/gameHandlers.ts`:
@@ -131,9 +133,9 @@ a correct score screen, per spec Acceptance Scenarios 1-8.
       `frontend/src/pages/Home.tsx`
 - [ ] T033 [P] [US1] `frontend`: Lobby page (player list, start button for
       host) in `frontend/src/pages/Lobby.tsx`
-- [ ] T034 [US1] `frontend`: Game page — discard pile, current color,
-      player list with card counts + turn indicator, in
-      `frontend/src/pages/Game.tsx`
+- [ ] T034 [US1] `frontend`: Game page, built landscape-first (Constitution
+      Principle VI) — discard pile centered, player list with card counts
+      + turn indicator along the top, in `frontend/src/pages/Game.tsx`
 - [ ] T035 [P] [US1] `frontend`: `Hand` + `Card` components (own hand,
       click-to-play, color picker for Wilds) in
       `frontend/src/components/Hand.tsx`, `Card.tsx`
@@ -143,6 +145,13 @@ a correct score screen, per spec Acceptance Scenarios 1-8.
       React state (depends on T014, T008)
 - [ ] T038 [US1] `frontend`: RoundSummary page showing scores in
       `frontend/src/pages/RoundSummary.tsx`
+- [ ] T039 [P] [US1] `frontend`: `useOrientation` hook
+      (`matchMedia('(orientation: portrait)')` detection, research.md
+      landscape-first decision) in `frontend/src/hooks/useOrientation.ts`
+- [ ] T040 [US1] `frontend`: `OrientationGate` full-screen "rotate your
+      device" overlay for small-screen portrait viewports, wrapping
+      `Game.tsx`, plus the horizontal-scroll-strip hand layout for
+      landscape (depends on T034, T035, T039)
 
 **Checkpoint**: User Story 1 fully playable end-to-end (quickstart.md
 steps 1-5 pass manually).
@@ -158,28 +167,32 @@ period without disrupting the table (spec Acceptance Scenarios 1-3).
 
 ### Tests for User Story 2
 
-- [ ] T039 [P] [US2] Socket integration test: client disconnects mid-game,
+- [ ] T041 [P] [US2] Socket integration test: client disconnects mid-game,
       reconnects with stored `playerId` within grace period, receives
       correct hand/turn state, in
       `backend/tests/integration/reconnect.test.ts`
-- [ ] T040 [P] [US2] Socket integration test: grace period elapses without
+- [ ] T042 [P] [US2] Socket integration test: grace period elapses without
       reconnection → turn auto-skips/auto-draws and play continues, in
       `backend/tests/integration/reconnect-timeout.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T041 [US2] Extend `RoomService`/`GameService` with grace-period timer
+- [ ] T043 [US2] Extend `RoomService`/`GameService` with grace-period timer
       per disconnected player (`settings.reconnectGraceSeconds`), emitting
       `player:presence` and auto-skip/auto-draw on timeout (depends on
       T013, T028)
-- [ ] T042 [US2] Persist `playerId` client-side (`localStorage`) and send
+- [ ] T044 [US2] Persist `playerId` client-side (`localStorage`) and send
       it on `room:join` for reconnect attempts, in
       `frontend/src/services/socket.ts` (depends on T014)
-- [ ] T043 [US2] `frontend`: "reconnecting..." indicator per player in
+- [ ] T045 [US2] `frontend`: "reconnecting..." indicator per player in
       `PlayerList`/`Game.tsx` (depends on T034)
-- [ ] T044 [US2] Verify FR-012 recovery: on `server.ts` boot, rehydrate any
-      `in_progress` `Game`/`Room` docs from MongoDB into memory (depends on
-      T012, T011)
+- [ ] T046 [US2] Integration test proving FR-012 recovery: kill and
+      restart the backend process mid-round; since MongoDB is the only
+      copy of game state (no in-memory store to rehydrate), the next
+      request against the room simply continues from the persisted
+      document — assert this in
+      `backend/tests/integration/restart-recovery.test.ts` (depends on
+      T012, T028)
 
 **Checkpoint**: User Stories 1 AND 2 both work; a killed backend process
 recovers in-progress rooms from MongoDB on restart.
@@ -196,22 +209,22 @@ the base quickstart steps — toggle settings, start, inspect deck).
 
 ### Tests for User Story 3
 
-- [ ] T045 [P] [US3] Unit test: `buildDeck({ includeSwapOrShuffle: 'swap',
+- [ ] T047 [P] [US3] Unit test: `buildDeck({ includeSwapOrShuffle: 'swap',
       customizableCount: 3 })` yields a 112-card deck with the right card
       mix, in `backend/tests/unit/deck.test.ts`
-- [ ] T046 [P] [US3] Unit test: 2-player house rules — Reverse acts as
+- [ ] T048 [P] [US3] Unit test: 2-player house rules — Reverse acts as
       Skip, Draw Two/Four returns turn to the drawer's opponent, in
       `backend/tests/unit/rules.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T047 [US3] Extend `deck.ts` to build the 112-card variant (Swap
+- [ ] T049 [US3] Extend `deck.ts` to build the 112-card variant (Swap
       Hands / Shuffle Hands / Customizable cards) per research.md
-- [ ] T048 [US3] Implement Wild Swap Hands and Wild Shuffle Hands effects
+- [ ] T050 [US3] Implement Wild Swap Hands and Wild Shuffle Hands effects
       in `rules.ts`
-- [ ] T049 [US3] Implement 2-player house-rule branch in `rules.ts`
+- [ ] T051 [US3] Implement 2-player house-rule branch in `rules.ts`
       (Reverse-as-Skip, immediate turn return after forced draws)
-- [ ] T050 [P] [US3] `frontend`: room-settings form (variant toggle,
+- [ ] T052 [P] [US3] `frontend`: room-settings form (variant toggle,
       customizable card text inputs, 2-player house rules) in
       `frontend/src/pages/Lobby.tsx`
 
@@ -221,17 +234,17 @@ the base quickstart steps — toggle settings, start, inspect deck).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T051 [P] Error boundary + toast/inline display for `game:error` in
+- [ ] T053 [P] Error boundary + toast/inline display for `game:error` in
       the frontend
-- [ ] T052 [P] `GET /api/health`-based "waking up the server" indicator on
+- [ ] T054 [P] `GET /api/health`-based "waking up the server" indicator on
       `Home.tsx` (plan.md deployment cold-start mitigation)
-- [ ] T053 Render deployment: `render.yaml` or dashboard config per
+- [ ] T055 Render deployment: `render.yaml` or dashboard config per
       plan.md Deployment Plan step 2
-- [ ] T054 Vercel deployment: `frontend/vercel.json` (or dashboard config)
+- [ ] T056 Vercel deployment: `frontend/vercel.json` (or dashboard config)
       per plan.md Deployment Plan step 3
-- [ ] T055 [P] Mobile-responsive layout pass on `Game.tsx`/`Hand.tsx`
+- [ ] T057 [P] Mobile-responsive layout pass on `Game.tsx`/`Hand.tsx`
       (target audience plays on phones)
-- [ ] T056 Run quickstart.md end-to-end manually against the deployed
+- [ ] T058 Run quickstart.md end-to-end manually against the deployed
       free-tier instances before calling MVP done
 
 ---
@@ -247,12 +260,12 @@ the base quickstart steps — toggle settings, start, inspect deck).
   but not on US2; can be built in parallel with US2 by a second
   contributor.
 - **Polish (Phase 6)** depends on US1 at minimum; deployment tasks
-  (T053-T054) can happen as soon as US1's checkpoint is reached, ahead of
+  (T055-T056) can happen as soon as US1's checkpoint is reached, ahead of
   US2/US3, to get a demoable link out early.
 
 ## Implementation Strategy
 
-**MVP first**: Phases 1-3 only → deploy (T053-T054) → demo to friends
+**MVP first**: Phases 1-3 only → deploy (T055-T056) → demo to friends
 before building reconnection/variant polish. This matches the
 constitution's Simplicity principle and gets real feedback on the core
 loop fastest.
