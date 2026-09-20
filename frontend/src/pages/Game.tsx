@@ -38,14 +38,24 @@ export default function Game() {
   const awaitingStartColor = game.activeColor === 'wild';
   const iChooseStartColor = awaitingStartColor && isMyTurn;
   const myPendingDraw = game.pendingDrawDecision?.playerId === playerId ? game.pendingDrawDecision : null;
+  const myTeamId = room.players.find((p) => p.id === playerId)?.teamId;
+  const teamMode = myTeamId !== undefined;
 
   return (
     <OrientationGate>
       <div className="game-page">
         <div className="opponent-strip">
           {room.players.map((p) => (
-            <div key={p.id} className={`opponent ${p.id === game.turnPlayerId ? 'active-turn' : ''}`}>
-              <span className="opponent-name">{p.displayName}</span>
+            <div
+              key={p.id}
+              className={`opponent ${p.id === game.turnPlayerId ? 'active-turn' : ''} ${
+                teamMode ? (p.teamId === myTeamId ? 'same-team' : 'opposing-team') : ''
+              }`}
+            >
+              <span className="opponent-name">
+                {p.displayName}
+                {teamMode && p.id !== playerId && (p.teamId === myTeamId ? ' (your team)' : '')}
+              </span>
               <span className="opponent-count">{game.handCounts[p.id] ?? 0} cards</span>
               {p.connectionStatus !== 'connected' && <span className="reconnecting">reconnecting…</span>}
             </div>
@@ -90,13 +100,16 @@ export default function Game() {
           onCallUno={() => socket.emit(SOCKET_EVENTS.GAME_CALL_UNO, { roomCode })}
           onCatchUno={(targetPlayerId) => socket.emit(SOCKET_EVENTS.GAME_CATCH_UNO, { roomCode, targetPlayerId })}
           onChallenge={() => socket.emit(SOCKET_EVENTS.GAME_CHALLENGE_WILD_DRAW_FOUR, { roomCode })}
+          onDeclineChallenge={() => socket.emit(SOCKET_EVENTS.GAME_DECLINE_CHALLENGE, { roomCode })}
         />
 
         <Hand
           cards={game.hand}
           isMyTurn={isMyTurn && !awaitingStartColor}
           mustPlayCardId={myPendingDraw?.cardId ?? null}
-          otherPlayers={room.players.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, displayName: p.displayName }))}
+          otherPlayers={room.players
+            .filter((p) => p.id !== playerId && (!teamMode || p.teamId !== myTeamId))
+            .map((p) => ({ id: p.id, displayName: p.displayName }))}
           onPlay={(cardId, chosenColor, targetPlayerId) =>
             socket.emit(SOCKET_EVENTS.GAME_PLAY_CARD, { roomCode, cardId, chosenColor, targetPlayerId })
           }

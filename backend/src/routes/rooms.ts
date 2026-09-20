@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { CreateRoomRequest, CreateRoomResponse, JoinPreflightResponse, RoomResultsResponse } from '@uno/shared';
+import type { CreateRoomRequest, CreateRoomResponse, JoinPreflightResponse, RoomResultsResponse, TeamId } from '@uno/shared';
 import { roomService } from '../services/RoomService';
 import { RoundResultModel } from '../models/RoundResult';
 import { RoomModel } from '../models/Room';
@@ -75,10 +75,21 @@ roomsRouter.get('/rooms/:code/results', async (req, res) => {
         roomCode: r.roomCode,
         roundNumber: r.roundNumber,
         winnerId: r.winnerId,
-        scores: r.scores.map((s) => ({ playerId: s.playerId, displayName: s.displayName, cardsLeftValue: s.cardsLeftValue })),
+        winningTeamId: (r.winningTeamId ?? undefined) as TeamId | undefined,
+        scores: r.scores.map((s) => ({
+          playerId: s.playerId,
+          displayName: s.displayName,
+          cardsLeftValue: s.cardsLeftValue,
+          teamId: (s.teamId ?? undefined) as TeamId | undefined,
+        })),
         endedAt: (r.endedAt ?? new Date()).toISOString(),
       })),
-      matchScores: room.players.map((p) => ({ playerId: p.id, displayName: p.displayName, total: p.matchScore })),
+      matchScores: room.players.map((p) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        total: p.matchScore,
+        teamId: (p.teamId ?? undefined) as TeamId | undefined,
+      })),
     };
     res.json(body);
   } catch (err) {

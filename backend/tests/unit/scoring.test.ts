@@ -45,4 +45,27 @@ describe('computeRoundScore', () => {
   it('handValue sums a hand correctly', () => {
     expect(handValue([c('red', { kind: 'number', value: 3 }), c('red', { kind: 'number', value: 4 })])).toBe(7);
   });
+
+  it('in Team Mode, excludes the winner\'s own teammate\'s hand from the award', () => {
+    const hands: Record<string, Card[]> = {
+      winner: [],
+      partner: [c('wild', { kind: 'wild' })], // winner's teammate — should NOT count
+      opp1: [c('red', { kind: 'number', value: 7 })],
+      opp2: [c('blue', { kind: 'skip' })],
+    };
+    const teamOf = { winner: 0, partner: 0, opp1: 1, opp2: 1 } as const;
+    const result = computeRoundScore(hands, 'winner', teamOf);
+    // Every hand is still reported individually…
+    expect(result.perPlayerCardsLeftValue).toEqual({ winner: 0, partner: 50, opp1: 7, opp2: 20 });
+    // …but only the opposing team's cards (7 + 20) count toward the award.
+    expect(result.pointsAwardedToWinner).toBe(27);
+  });
+
+  it('without teamOf, behaves exactly as the free-for-all case (backward compatible)', () => {
+    const hands: Record<string, Card[]> = {
+      winner: [],
+      p2: [c('red', { kind: 'number', value: 7 })],
+    };
+    expect(computeRoundScore(hands, 'winner')).toEqual(computeRoundScore(hands, 'winner', undefined));
+  });
 });

@@ -5,6 +5,7 @@ import {
   callUno,
   catchUno,
   challengeWildDrawFour,
+  declineChallenge,
   drawCard,
   isLegalPlay,
   passTurn,
@@ -315,6 +316,37 @@ describe('Wild Swap Hands / Wild Shuffle Hands (User Story 4)', () => {
     expect(game.hands.p2.map((c) => c.id)).toEqual(['p2-a']); // untouched
   });
 
+  it('rejects targeting a teammate in Team Mode', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 7 }, 'p2-a')],
+        p3: [c('green', { kind: 'number', value: 8 }, 'p3-a')],
+      },
+    });
+    const teamOf = { p1: 0, p2: 0, p3: 1 } as const;
+    expect(() =>
+      playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue', targetPlayerId: 'p2' }, { teamOf }),
+    ).toThrow(/opposing player/i);
+    // The rejection happens before any hand is exchanged.
+    expect(game.hands.p2.map((c) => c.id)).toEqual(['p2-a']);
+  });
+
+  it('allows swapping with an opposing player in Team Mode', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 7 }, 'p2-a')],
+        p3: [c('green', { kind: 'number', value: 8 }, 'p3-a')],
+      },
+    });
+    const teamOf = { p1: 0, p2: 0, p3: 1 } as const;
+    expect(() =>
+      playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue', targetPlayerId: 'p3' }, { teamOf }),
+    ).not.toThrow();
+    expect(game.hands.p1.map((c) => c.id)).toEqual(['p3-a']);
+  });
+
   it('redeals all cards starting with the player to the left', () => {
     const game = baseGame({
       hands: {
@@ -359,5 +391,181 @@ describe('Uno call / catch', () => {
   it('catchUno fails once the player has already declared', () => {
     callUno(game, 'p1');
     expect(() => catchUno(game, 'p1')).toThrow(/already declared/i);
+  });
+});
+
+describe('declineChallenge', () => {
+  it('clears the pending challenge with no extra penalty when the target accepts', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_draw_four' }, 'p1-a'), c('red', { kind: 'number', value: 2 }, 'p1-b')],
+        p2: [],
+        p3: [],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    expect(game.pendingChallenge).not.toBeNull();
+    expect(game.hands.p2).toHaveLength(4); // optimistic draw already applied
+
+    declineChallenge(game, 'p2');
+    expect(game.pendingChallenge).toBeNull();
+    expect(game.hands.p2).toHaveLength(4); // no extra penalty, just accepted
+    expect(game.turnIndex).toBe(2); // turn stays where the WD4 already left it
+  });
+
+  it('rejects decline from anyone other than the target', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_draw_four' }, 'p1-a'), c('red', { kind: 'number', value: 2 }, 'p1-b')],
+        p2: [],
+        p3: [],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    expect(() => declineChallenge(game, 'p3')).toThrow(/only the player who drew/i);
+  });
+
+  it('rejects decline when there is nothing pending', () => {
+    const game = baseGame();
+    expect(() => declineChallenge(game, 'p1')).toThrow(/no wild draw four to challenge/i);
+  });
+});
+
+describe('Wild Draw Four challenge legality after a chained Wild (color exploit fix)', () => {
+  it("checks the true prior color, not the WD4 player's own new pick", () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild' }, 'p1-a'), c('red', { kind: 'number', value: 4 }, 'p1-filler')],
+        p2: [c('wild', { kind: 'wild_draw_four' }, 'p2-a'), c('blue', { kind: 'number', value: 7 }, 'p2-b')],
+        p3: [],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    expect(game.turnIndex).toBe(1); // p2's turn
+    expect(game.discardPile[game.discardPile.length - 1].color).toBe('wild');
+
+    playCard(game, { playerId: 'p2', cardId: 'p2-a', chosenColor: 'green' });
+    // p2 held a legal blue alternative under the true prior color (blue), even
+    // though p2 picked 'green' for their own WD4 — must still be ruled guilty.
+    expect(game.pendingChallenge?.hadLegalAlternative).toBe(true);
+  });
+});
+
+describe('Wild Draw Four as a winning last card', () => {
+  it('still applies the draw-4 penalty but does not open a challenge', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_draw_four' }, 'p1-a')], // last card
+        p2: [c('blue', { kind: 'number', value: 3 }, 'p2-a')],
+        p3: [],
+      },
+    });
+    const events = playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    expect(events).toContainEqual({ type: 'round_ended', winnerId: 'p1' });
+    expect(game.hands.p2).toHaveLength(5); // 1 + 4 penalty still applied
+    expect(game.pendingChallenge).toBeNull(); // nothing left to challenge
+    expect(events.some((e) => e.type === 'challenge_opened')).toBe(false);
+  });
+});
+
+describe('Wild Draw Four challenge-loss draw shuffling', () => {
+  it('conserves every card (none lost or duplicated) when the returned draw is reshuffled back in', () => {
+    const game = baseGame({
+      deck: fillerCards(10, 'deck'),
+      hands: {
+        p1: [c('wild', { kind: 'wild_draw_four' }, 'p1-a'), c('red', { kind: 'number', value: 2 }, 'p1-b')],
+        p2: [],
+        p3: [],
+      },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    challengeWildDrawFour(game, 'p2'); // p1 had a legal alternative -> guilty, draws 4 back
+
+    const allIdsAfter = [
+      ...game.deck,
+      ...game.discardPile,
+      ...Object.values(game.hands).flat(),
+    ].map((card) => card.id);
+    expect(new Set(allIdsAfter).size).toBe(allIdsAfter.length); // no duplicates
+    expect(allIdsAfter).toHaveLength(2 /* p1's cards */ + 10 /* filler deck */ + 1 /* initial discard top */);
+  });
+});
+
+describe('pendingUnoCall stays in sync with actual hand sizes', () => {
+  it('updates when a Draw Two penalty lands on an already-one-card hand', () => {
+    const game = baseGame({
+      turnOrder: ['p1', 'p2'],
+      hands: {
+        p1: [c('red', { kind: 'draw_two' }, 'p1-a')],
+        p2: [c('blue', { kind: 'number', value: 1 }, 'p2-only')],
+      },
+      pendingUnoCall: { playerId: 'p2' },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a' });
+    expect(game.hands.p2).toHaveLength(3); // 1 + 2 penalty
+    expect(game.pendingUnoCall).toBeNull(); // no longer at exactly one card
+  });
+
+  it('follows the hand through Wild Swap Hands, not the player', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_swap_hands' }, 'p1-a'), c('red', { kind: 'number', value: 1 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 7 }, 'p2-a'), c('green', { kind: 'number', value: 8 }, 'p2-b')],
+        p3: [],
+      },
+      pendingUnoCall: null, // nobody is at one card before the swap
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue', targetPlayerId: 'p2' });
+    expect(game.hands.p1).toHaveLength(2); // p1 now holds p2's old 2-card hand
+    expect(game.hands.p2).toHaveLength(1); // p2 now holds p1's old 1-card leftover
+    // p2 received a one-card hand via the swap — pendingUnoCall must pick that
+    // up even though p2 was never at one card through any play of their own.
+    expect(game.pendingUnoCall).toEqual({ playerId: 'p2' });
+  });
+
+  it('reflects reality after Wild Shuffle Hands, whoever ends up at one card', () => {
+    const game = baseGame({
+      hands: {
+        p1: [c('wild', { kind: 'wild_shuffle_hands' }, 'p1-a'), c('red', { kind: 'number', value: 9 }, 'p1-b')],
+        p2: [c('blue', { kind: 'number', value: 1 }, 'p2-only')],
+        p3: [c('green', { kind: 'number', value: 2 }, 'p3-a'), c('green', { kind: 'number', value: 3 }, 'p3-b')],
+      },
+      pendingUnoCall: { playerId: 'p2' },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    const counts: Record<string, number> = {
+      p1: game.hands.p1.length,
+      p2: game.hands.p2.length,
+      p3: game.hands.p3.length,
+    };
+    if (game.pendingUnoCall) {
+      expect(counts[game.pendingUnoCall.playerId]).toBe(1);
+    } else {
+      expect(Object.values(counts)).not.toContain(1);
+    }
+  });
+
+  it('is restored for the target when a successful challenge undoes their draw', () => {
+    const game = baseGame({
+      hands: {
+        // p1 keeps two spare cards so p1 itself doesn't also land on one card
+        // and contend for the single pendingUnoCall slot below.
+        p1: [
+          c('wild', { kind: 'wild_draw_four' }, 'p1-a'),
+          c('red', { kind: 'number', value: 2 }, 'p1-b'),
+          c('red', { kind: 'number', value: 3 }, 'p1-c'),
+        ],
+        p2: [c('blue', { kind: 'number', value: 9 }, 'p2-only')], // already at one card
+        p3: [],
+      },
+      pendingUnoCall: { playerId: 'p2' },
+    });
+    playCard(game, { playerId: 'p1', cardId: 'p1-a', chosenColor: 'blue' });
+    expect(game.hands.p2).toHaveLength(5); // 1 + 4 optimistic draw
+    expect(game.pendingUnoCall).toBeNull(); // no longer at one card
+
+    challengeWildDrawFour(game, 'p2'); // p1 had a legal alternative -> guilty
+    expect(game.hands.p2).toHaveLength(1); // draw undone, back to their original card
+    expect(game.pendingUnoCall).toEqual({ playerId: 'p2' });
   });
 });

@@ -28,7 +28,13 @@ export function useGameState(roomCode: string, fallbackDisplayName: string) {
   const joinedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!connected || joinedRef.current === roomCode) return;
+    if (!connected) {
+      // Let a reconnect (new socket.id) re-emit room:join below instead of
+      // silently no-oping forever because joinedRef still says "already joined".
+      joinedRef.current = null;
+      return;
+    }
+    if (joinedRef.current === roomCode) return;
     const identity = getStoredIdentity();
     if (!identity) return;
     joinedRef.current = roomCode;

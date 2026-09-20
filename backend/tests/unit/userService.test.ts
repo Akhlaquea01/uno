@@ -57,11 +57,31 @@ describe('UserService', () => {
   it('recordMatchCompletion increments gamesPlayed for all, gamesWon only for the winner', async () => {
     const a = await userService.upsertByEmail('A', 'a@example.com');
     const b = await userService.upsertByEmail('B', 'b@example.com');
-    await userService.recordMatchCompletion([a._id.toString(), b._id.toString()], a._id.toString());
+    await userService.recordMatchCompletion([a._id.toString(), b._id.toString()], [a._id.toString()]);
 
     const updatedA = await userService.getById(a._id.toString());
     const updatedB = await userService.getById(b._id.toString());
     expect(updatedA?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 1 });
     expect(updatedB?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 0 });
+  });
+
+  it('recordMatchCompletion credits gamesWon to every winning team member (2v2)', async () => {
+    const a = await userService.upsertByEmail('A', 'a2@example.com');
+    const b = await userService.upsertByEmail('B', 'b2@example.com');
+    const c = await userService.upsertByEmail('C', 'c2@example.com');
+    const d = await userService.upsertByEmail('D', 'd2@example.com');
+    await userService.recordMatchCompletion(
+      [a._id.toString(), b._id.toString(), c._id.toString(), d._id.toString()],
+      [a._id.toString(), c._id.toString()],
+    );
+
+    const updatedA = await userService.getById(a._id.toString());
+    const updatedB = await userService.getById(b._id.toString());
+    const updatedC = await userService.getById(c._id.toString());
+    const updatedD = await userService.getById(d._id.toString());
+    expect(updatedA?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 1 });
+    expect(updatedC?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 1 });
+    expect(updatedB?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 0 });
+    expect(updatedD?.stats).toMatchObject({ gamesPlayed: 1, gamesWon: 0 });
   });
 });

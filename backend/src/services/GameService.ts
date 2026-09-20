@@ -7,6 +7,7 @@ import {
   catchUno as engineCatchUno,
   challengeWildDrawFour as engineChallenge,
   chooseStartColor as engineChooseStartColor,
+  declineChallenge as engineDeclineChallenge,
   drawCard as engineDrawCard,
   passTurn as enginePassTurn,
   playCard as enginePlayCard,
@@ -19,25 +20,27 @@ import { IllegalActionError } from '../game/types';
 import { userService } from './UserService';
 
 function toGameState(doc: any): GameState {
-  const handsSource = doc.hands instanceof Map ? Object.fromEntries(doc.hands) : doc.hands || {};
-  const hands: Record<string, Card[]> = {};
-  for (const [k, v] of Object.entries(handsSource)) hands[k] = (v as Card[]).map((c) => ({ ...c }));
+  // Mongoose subdocuments expose their fields (id/color/type) via prototype
+  // getters, not own enumerable properties, so `{ ...card }` silently drops
+  // them. `toObject()` first converts the whole document — including nested
+  // Card subdocuments and the `hands` Map — into plain JSON-safe objects.
+  const obj = doc.toObject({ flattenMaps: true });
 
   return {
-    roomCode: doc.roomCode,
-    version: doc.version,
-    roundNumber: doc.roundNumber,
-    deck: doc.deck.map((c: Card) => ({ ...c })),
-    discardPile: doc.discardPile.map((c: Card) => ({ ...c })),
-    hands,
-    activeColor: doc.activeColor as Color,
-    turnOrder: [...doc.turnOrder],
-    turnIndex: doc.turnIndex,
-    direction: doc.direction as 1 | -1,
-    pendingUnoCall: doc.pendingUnoCall ? { ...doc.pendingUnoCall } : null,
-    pendingChallenge: doc.pendingChallenge ? { ...doc.pendingChallenge } : null,
-    pendingDrawDecision: doc.pendingDrawDecision ? { ...doc.pendingDrawDecision } : null,
-    updatedAt: doc.updatedAt ?? new Date(),
+    roomCode: obj.roomCode,
+    version: obj.version,
+    roundNumber: obj.roundNumber,
+    deck: obj.deck,
+    discardPile: obj.discardPile,
+    hands: obj.hands ?? {},
+    activeColor: obj.activeColor as Color,
+    turnOrder: [...obj.turnOrder],
+    turnIndex: obj.turnIndex,
+    direction: obj.direction as 1 | -1,
+    pendingUnoCall: obj.pendingUnoCall ?? null,
+    pendingChallenge: obj.pendingChallenge ?? null,
+    pendingDrawDecision: obj.pendingDrawDecision ?? null,
+    updatedAt: obj.updatedAt ?? new Date(),
   };
 }
 
@@ -84,35 +87,78 @@ export class GameService {
     return { state: toGameState(doc), expectedVersion: doc.version };
   }
 
-  async startGame(roomCode: string) {
-    const room = await RoomModel.findOne({ code: roomCode });
-    if (!room) throw new IllegalActionError('room_not_found', 'No room with that code exists.');
-    if (room.status !== 'lobby') {
-      throw new IllegalActionError('already_started', 'This room has already started.');
+  /** Team Mode requires exactly 4 players, 2 per team, reseated so turn order
+   * naturally alternates between teams — rules.ts's turn-order math is
+   * entirely unaware of teams and needs no changes for this to work. */
+  private arrangeTeamSeats(room: InstanceType<typeof RoomModel>): void {
+    if (room.players.length !== 4) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 4 players.');
     }
-    if (room.players.length < 2 || room.players.length > 10) {
-      throw new IllegalActionError('invalid_player_count', 'Uno needs 2 to 10 players.');
+    const teamA = room.players.filter((p) => p.teamId === 0);
+    const teamB = room.players.filter((p) => p.teamId === 1);
+    if (teamA.length !== 2 || teamB.length !== 2) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 2 players per team.');
     }
-
-    const deckOptions: DeckOptions = {
-      includeSwapOrShuffle: room.settings.variant112 === 'off' ? undefined : room.settings.variant112,
-      customizableCount: room.settings.customizableCount as 0 | 1 | 2 | 3,
-      customizableTexts: room.settings.customizableTexts,
-    };
-
-    const { game, events } = setupGame(roomCode, room.players as any, deckOptions);
-    await GameModel.findOneAndDelete({ roomCode }); // clear any stale doc from a previous round/room reuse
-    const gameDoc = await GameModel.create(game);
-
-    room.status = 'in_progress';
-    await room.save();
-
-    return { room, game: gameDoc, events };
+    [teamA[0], teamB[0], teamA[1], teamB[1]].forEach((p, i) => {
+      p.seat = i;
+    });
   }
 
-  async nextRound(roomCode: string) {
+  async startGame(roomCode: string, callerId: string) {
+    const preCheck = await RoomModel.findOne({ code: roomCode });
+    if (!preCheck) throw new IllegalActionError('room_not_found', 'No room with that code exists.');
+    const caller = preCheck.players.find((p) => p.id === callerId);
+    if (!caller?.isHost) {
+      throw new IllegalActionError('not_host', 'Only the host can start the game.');
+    }
+
+    // Atomically claim the lobby -> in_progress transition before reading
+    // room.players for dealing, so a join landing between the check above and
+    // dealing can't be persisted into Room.players while silently excluded
+    // from the Game's turnOrder/hands — joinRoom rejects once status isn't
+    // 'lobby' anymore, closing the race instead of dealing a stale snapshot.
+    const room = await RoomModel.findOneAndUpdate(
+      { code: roomCode, status: 'lobby' },
+      { $set: { status: 'in_progress' } },
+      { new: true },
+    );
+    if (!room) {
+      throw new IllegalActionError('already_started', 'This room has already started.');
+    }
+
+    try {
+      if (room.settings.teamMode) {
+        this.arrangeTeamSeats(room);
+      } else if (room.players.length < 2 || room.players.length > 10) {
+        throw new IllegalActionError('invalid_player_count', 'Uno needs 2 to 10 players.');
+      }
+
+      const deckOptions: DeckOptions = {
+        includeSwapOrShuffle: room.settings.variant112 === 'off' ? undefined : room.settings.variant112,
+        customizableCount: room.settings.customizableCount as 0 | 1 | 2 | 3,
+        customizableTexts: room.settings.customizableTexts,
+      };
+
+      const { game, events } = setupGame(roomCode, room.players as any, deckOptions);
+      await GameModel.findOneAndDelete({ roomCode }); // clear any stale doc from a previous round/room reuse
+      const gameDoc = await GameModel.create(game);
+
+      await room.save(); // persists any seat reassignment from arrangeTeamSeats
+
+      return { room, game: gameDoc, events };
+    } catch (err) {
+      await RoomModel.updateOne({ code: roomCode }, { $set: { status: 'lobby' } });
+      throw err;
+    }
+  }
+
+  async nextRound(roomCode: string, callerId: string) {
     const room = await RoomModel.findOne({ code: roomCode });
     if (!room) throw new IllegalActionError('room_not_found', 'No room with that code exists.');
+    const caller = room.players.find((p) => p.id === callerId);
+    if (!caller?.isHost) {
+      throw new IllegalActionError('not_host', 'Only the host can start the next round.');
+    }
     if (room.status !== 'round_ended') {
       throw new IllegalActionError('not_round_ended', 'The current round has not ended yet.');
     }
@@ -147,8 +193,14 @@ export class GameService {
 
   async playCard(roomCode: string, input: PlayCardInput): Promise<ActionOutcome> {
     const room = await RoomModel.findOne({ code: roomCode });
+    const teamOf: Record<string, 0 | 1> | undefined = room?.settings.teamMode
+      ? Object.fromEntries(
+          room.players.filter((p) => p.teamId === 0 || p.teamId === 1).map((p) => [p.id, p.teamId as 0 | 1]),
+        )
+      : undefined;
     const houseRules = {
       twoPlayerReverseIsSkip: Boolean(room?.settings.twoPlayerHouseRules) && room?.players.length === 2,
+      teamOf,
     };
     return this.runAction(roomCode, (state) => enginePlayCard(state, input, houseRules));
   }
@@ -200,12 +252,24 @@ export class GameService {
     });
   }
 
-  async catchUno(roomCode: string, targetPlayerId: string): Promise<ActionOutcome> {
-    return this.runAction(roomCode, (state) => engineCatchUno(state, targetPlayerId));
+  async catchUno(roomCode: string, callerId: string, targetPlayerId: string): Promise<ActionOutcome> {
+    return this.runAction(roomCode, (state) => {
+      if (!state.turnOrder.includes(callerId)) {
+        throw new IllegalActionError('not_in_game', 'You are not seated in this game.');
+      }
+      return engineCatchUno(state, targetPlayerId);
+    });
   }
 
   async challengeWildDrawFour(roomCode: string, challengerId: string): Promise<ActionOutcome> {
     return this.runAction(roomCode, (state) => engineChallenge(state, challengerId));
+  }
+
+  async declineChallenge(roomCode: string, playerId: string): Promise<ActionOutcome> {
+    return this.runAction(roomCode, (state) => {
+      engineDeclineChallenge(state, playerId);
+      return [];
+    });
   }
 
   private async runAction(
@@ -220,9 +284,18 @@ export class GameService {
     let matchEnded = false;
     let roundResult: ActionOutcome['roundResult'] = null;
     if (roundEndedEvent && roundEndedEvent.type === 'round_ended') {
-      const outcome = await this.finalizeRound(roomCode, state, roundEndedEvent.winnerId);
-      matchEnded = outcome.matchEnded;
-      roundResult = outcome.roundResult;
+      try {
+        const outcome = await this.finalizeRound(roomCode, state, roundEndedEvent.winnerId);
+        matchEnded = outcome.matchEnded;
+        roundResult = outcome.roundResult;
+      } catch (err) {
+        // The Game document above is already persisted with the round over.
+        // Don't let a scoring/stats failure here throw away that broadcast —
+        // the caller still sends `game` to every player below; only the
+        // round-result/score summary is missing in this (rare) failure case.
+        // eslint-disable-next-line no-console
+        console.error('finalizeRound failed after a round-ending play', err);
+      }
     }
 
     return { game, events, roundEnded: Boolean(roundEndedEvent), matchEnded, roundResult };
@@ -232,25 +305,38 @@ export class GameService {
     const room = await RoomModel.findOne({ code: roomCode });
     if (!room) return { matchEnded: false, roundResult: null };
 
-    const scoreResult = computeRoundScore(state.hands, winnerId);
+    const teamOf: Record<string, 0 | 1> | undefined = room.settings.teamMode
+      ? Object.fromEntries(
+          room.players.filter((p) => p.teamId === 0 || p.teamId === 1).map((p) => [p.id, p.teamId as 0 | 1]),
+        )
+      : undefined;
+    const scoreResult = computeRoundScore(state.hands, winnerId, teamOf);
+    const winningTeamId = teamOf?.[winnerId];
     const scores = room.players.map((p) => ({
       playerId: p.id,
       displayName: p.displayName,
       cardsLeftValue: scoreResult.perPlayerCardsLeftValue[p.id] ?? 0,
+      teamId: teamOf ? p.teamId ?? undefined : undefined,
     }));
 
     const roundResult = await RoundResultModel.create({
       roomCode,
       roundNumber: state.roundNumber,
       winnerId,
+      winningTeamId: winningTeamId ?? null,
       scores,
       endedAt: new Date(),
     });
 
-    const winner = room.players.find((p) => p.id === winnerId);
-    if (winner) {
-      winner.matchScore += scoreResult.pointsAwardedToWinner;
-      await userService.addRoundScore(winner.userId, scoreResult.pointsAwardedToWinner);
+    // In Team Mode, both teammates receive the round's points, not only
+    // whichever of them happened to empty their hand.
+    const roundWinners =
+      winningTeamId !== undefined
+        ? room.players.filter((p) => p.teamId === winningTeamId)
+        : room.players.filter((p) => p.id === winnerId);
+    for (const w of roundWinners) {
+      w.matchScore += scoreResult.pointsAwardedToWinner;
+      await userService.addRoundScore(w.userId, scoreResult.pointsAwardedToWinner);
     }
 
     const matchEnded = room.players.some((p) => p.matchScore >= room.settings.targetScore);
@@ -259,9 +345,13 @@ export class GameService {
 
     if (matchEnded) {
       const matchWinner = [...room.players].sort((a, b) => b.matchScore - a.matchScore)[0];
+      const matchWinners =
+        matchWinner.teamId === 0 || matchWinner.teamId === 1
+          ? room.players.filter((p) => p.teamId === matchWinner.teamId)
+          : [matchWinner];
       await userService.recordMatchCompletion(
         room.players.map((p) => p.userId),
-        matchWinner.userId,
+        matchWinners.map((p) => p.userId),
       );
     }
 

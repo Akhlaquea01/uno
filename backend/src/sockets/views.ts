@@ -19,6 +19,7 @@ export function buildRoomView(room: any): RoomView {
       isHost: p.isHost,
       matchScore: p.matchScore,
       handCount: 0,
+      teamId: p.teamId ?? undefined,
     })),
     settings: room.settings,
     createdAt: (room.createdAt ?? new Date()).toISOString?.() ?? new Date().toISOString(),
@@ -81,6 +82,31 @@ export function maybeScheduleAutoSkip(io: Server, room: any, game: any): void {
   scheduleAutoSkip(room.code, turnPlayerId, room.settings.reconnectGraceSeconds, async () => {
     const outcome = await gameService.autoSkipTurn(room.code, turnPlayerId);
     if (!outcome) return;
+    const freshRoom = await RoomModel.findOne({ code: room.code });
+    if (freshRoom) {
+      broadcastGameState(io, freshRoom, outcome.game);
+      maybeScheduleAutoSkip(io, freshRoom, outcome.game);
+    }
+  });
+}
+
+/** If a Wild Draw Four challenge is pending against a disconnected target,
+ * arm their grace-period timer to auto-decline (accept the draw) once it
+ * elapses — otherwise a target who disconnects right after being hit could
+ * leave the challenge (and everyone's next action) stuck forever. */
+export function maybeScheduleChallengeAutoDecline(io: Server, room: any, game: any): void {
+  const pending = game.pendingChallenge;
+  if (!pending) return;
+  const target = room.players.find((p: any) => p.id === pending.targetPlayerId);
+  if (!target || target.connectionStatus !== 'disconnected') return;
+
+  scheduleAutoSkip(room.code, pending.targetPlayerId, room.settings.reconnectGraceSeconds, async () => {
+    let outcome: Awaited<ReturnType<typeof gameService.declineChallenge>> | null = null;
+    try {
+      outcome = await gameService.declineChallenge(room.code, pending.targetPlayerId);
+    } catch {
+      return; // already resolved (reconnected and acted, or resolved some other way)
+    }
     const freshRoom = await RoomModel.findOne({ code: room.code });
     if (freshRoom) {
       broadcastGameState(io, freshRoom, outcome.game);

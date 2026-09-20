@@ -1,4 +1,4 @@
-import type { Card, Color, ConnectionStatus, RoomSettings, RoomStatus } from '@uno/shared';
+import type { Card, Color, ConnectionStatus, RoomSettings, RoomStatus, TeamId } from '@uno/shared';
 
 /** A seat in a Room — identity/connection/score, persists across rounds. */
 export interface PlayerState {
@@ -10,6 +10,8 @@ export interface PlayerState {
   seat: number;
   isHost: boolean;
   matchScore: number;
+  /** Set only in a Team Mode room (lobby-assigned, cleared on team-mode off). */
+  teamId?: TeamId | null;
 }
 
 export interface RoomState {

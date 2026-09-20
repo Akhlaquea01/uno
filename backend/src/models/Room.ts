@@ -15,6 +15,7 @@ const PlayerSchema = new Schema(
     seat: { type: Number, required: true },
     isHost: { type: Boolean, default: false },
     matchScore: { type: Number, default: 0 },
+    teamId: { type: Number, enum: [0, 1, null], default: null },
   },
   { _id: false },
 );
@@ -30,6 +31,7 @@ const RoomSettingsSchema = new Schema(
       type: Number,
       default: DEFAULT_ROOM_SETTINGS.reconnectGraceSeconds,
     },
+    teamMode: { type: Boolean, default: DEFAULT_ROOM_SETTINGS.teamMode },
   },
   { _id: false },
 );

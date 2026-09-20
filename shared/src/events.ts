@@ -24,6 +24,9 @@ export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
 export type RoomStatus = 'lobby' | 'in_progress' | 'round_ended' | 'match_ended';
 export type Variant112 = 'off' | 'swap' | 'shuffle';
 
+/** 2v2 Team Mode: exactly 4 players, 2 per team. Team A = 0, Team B = 1. */
+export type TeamId = 0 | 1;
+
 export interface RoomSettings {
   targetScore: number;
   variant112: Variant112;
@@ -31,6 +34,7 @@ export interface RoomSettings {
   customizableTexts: string[];
   twoPlayerHouseRules: boolean;
   reconnectGraceSeconds: number;
+  teamMode: boolean;
 }
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
@@ -40,6 +44,7 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   customizableTexts: [],
   twoPlayerHouseRules: false,
   reconnectGraceSeconds: 180,
+  teamMode: false,
 };
 
 export interface PlayerView {
@@ -51,6 +56,7 @@ export interface PlayerView {
   isHost: boolean;
   matchScore: number;
   handCount: number;
+  teamId?: TeamId;
 }
 
 export interface RoomView {
@@ -98,13 +104,17 @@ export interface RoundResultView {
   roomCode: string;
   roundNumber: number;
   winnerId: string;
-  scores: { playerId: string; displayName: string; cardsLeftValue: number }[];
+  /** Set only in a Team Mode room — the team that won this round. */
+  winningTeamId?: TeamId;
+  scores: { playerId: string; displayName: string; cardsLeftValue: number; teamId?: TeamId }[];
   endedAt: string;
 }
 
 export interface MatchEndedPayload {
   winnerId: string;
-  finalScores: { playerId: string; displayName: string; total: number }[];
+  /** Set only in a Team Mode room — the team that won the match. */
+  winningTeamId?: TeamId;
+  finalScores: { playerId: string; displayName: string; total: number; teamId?: TeamId }[];
 }
 
 export interface UserProfile {
@@ -144,7 +154,7 @@ export interface JoinPreflightResponse {
 
 export interface RoomResultsResponse {
   rounds: RoundResultView[];
-  matchScores: { playerId: string; displayName: string; total: number }[];
+  matchScores: { playerId: string; displayName: string; total: number; teamId?: TeamId }[];
 }
 
 export interface HealthResponse {
@@ -165,6 +175,11 @@ export interface RoomStartIntent {
 export interface RoomUpdateSettingsIntent {
   roomCode: string;
   settings: Partial<RoomSettings>;
+}
+/** Sets the caller's own team in a Team Mode lobby (lobby-only). */
+export interface RoomAssignTeamIntent {
+  roomCode: string;
+  teamId: TeamId;
 }
 export interface PlayCardIntent {
   roomCode: string;
@@ -193,6 +208,9 @@ export interface CatchUnoIntent {
 export interface ChallengeWildDrawFourIntent {
   roomCode: string;
 }
+export interface DeclineChallengeIntent {
+  roomCode: string;
+}
 export interface NextRoundIntent {
   roomCode: string;
 }
@@ -212,6 +230,7 @@ export const SOCKET_EVENTS = {
   ROOM_JOIN: 'room:join',
   ROOM_START: 'room:start',
   ROOM_UPDATE_SETTINGS: 'room:update_settings',
+  ROOM_ASSIGN_TEAM: 'room:assign_team',
   ROOM_NEXT_ROUND: 'room:next_round',
   ROOM_STATE: 'room:state',
   GAME_PLAY_CARD: 'game:play_card',
@@ -221,6 +240,7 @@ export const SOCKET_EVENTS = {
   GAME_CALL_UNO: 'game:call_uno',
   GAME_CATCH_UNO: 'game:catch_uno',
   GAME_CHALLENGE_WILD_DRAW_FOUR: 'game:challenge_wild_draw_four',
+  GAME_DECLINE_CHALLENGE: 'game:decline_challenge',
   GAME_STATE: 'game:state',
   GAME_ROUND_ENDED: 'game:round_ended',
   GAME_MATCH_ENDED: 'game:match_ended',

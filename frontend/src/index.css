@@ -151,6 +151,63 @@ button:not(:disabled):hover {
   word-break: break-all;
 }
 
+.team-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.team-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.team-columns {
+  display: flex;
+  gap: 1rem;
+}
+
+.team-column {
+  flex: 1;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 3px solid transparent;
+}
+
+.team-column.team-0 {
+  border-top-color: var(--blue);
+}
+
+.team-column.team-1 {
+  border-top-color: var(--accent);
+}
+
+.team-column h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.team-score-groups {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.team-score-groups > div {
+  flex: 1;
+  min-width: 160px;
+}
+
+.team-score-groups h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
 /* ---------- Game page: landscape-first (Constitution Principle VI) ---------- */
 
 .game-page {
@@ -182,6 +239,14 @@ button:not(:disabled):hover {
 
 .opponent.active-turn {
   border-color: var(--accent);
+}
+
+.opponent.same-team {
+  background: var(--panel-2);
+}
+
+.opponent.opposing-team {
+  opacity: 0.85;
 }
 
 .opponent-name {
@@ -245,6 +310,11 @@ button:not(:disabled):hover {
   background: var(--yellow);
   color: #222;
   font-weight: 700;
+}
+
+.accept-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--muted);
 }
 
 .catch-btn {

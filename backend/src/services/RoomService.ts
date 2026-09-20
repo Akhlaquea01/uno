@@ -74,6 +74,20 @@ export class RoomService {
     return room;
   }
 
+  /** Sets the caller's own team in a Team Mode lobby — lobby-only, self-service. */
+  async assignTeam(roomCode: string, playerId: string, teamId: 0 | 1) {
+    const room = await RoomModel.findOne({ code: roomCode });
+    if (!room) throw new IllegalActionError('room_not_found', 'No room with that code exists.');
+    if (room.status !== 'lobby') {
+      throw new IllegalActionError('already_started', 'Teams can only be chosen before the game starts.');
+    }
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) throw new IllegalActionError('not_in_room', 'You are not seated in this room.');
+    player.teamId = teamId;
+    await room.save();
+    return room;
+  }
+
   async preflightStatus(roomCode: string): Promise<'lobby' | 'in_progress' | 'full' | 'not_found'> {
     const room = await RoomModel.findOne({ code: roomCode });
     if (!room) return 'not_found';

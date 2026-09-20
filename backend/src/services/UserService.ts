@@ -27,10 +27,11 @@ export class UserService {
     await UserModel.findByIdAndUpdate(userId, { $inc: { 'stats.totalScore': delta } });
   }
 
-  /** Increments gamesPlayed for everyone seated, and gamesWon for the match winner (FR-021). */
-  async recordMatchCompletion(userIds: string[], winnerUserId: string): Promise<void> {
+  /** Increments gamesPlayed for everyone seated, and gamesWon for the match
+   * winner(s) — a single player normally, or both teammates in Team Mode (FR-021). */
+  async recordMatchCompletion(userIds: string[], winnerUserIds: string[]): Promise<void> {
     await UserModel.updateMany({ _id: { $in: userIds } }, { $inc: { 'stats.gamesPlayed': 1 } });
-    await UserModel.findByIdAndUpdate(winnerUserId, { $inc: { 'stats.gamesWon': 1 } });
+    await UserModel.updateMany({ _id: { $in: winnerUserIds } }, { $inc: { 'stats.gamesWon': 1 } });
   }
 }
 

@@ -32,14 +32,26 @@ export interface RoundScoreResult {
   pointsAwardedToWinner: number;
 }
 
-/** Round score: the winner is awarded the sum of every other player's remaining hand value. */
-export function computeRoundScore(hands: Record<string, Card[]>, winnerId: string): RoundScoreResult {
+/**
+ * Round score: the winner is awarded the sum of every other player's
+ * remaining hand value. In Team Mode (`teamOf` given), the winner's own
+ * teammate's leftover hand doesn't count against anyone — only the opposing
+ * team's hands are summed, and that total is what both teammates receive.
+ */
+export function computeRoundScore(
+  hands: Record<string, Card[]>,
+  winnerId: string,
+  teamOf?: Record<string, 0 | 1>,
+): RoundScoreResult {
   const perPlayerCardsLeftValue: Record<string, number> = {};
   let pointsAwardedToWinner = 0;
+  const winnerTeam = teamOf?.[winnerId];
   for (const [playerId, hand] of Object.entries(hands)) {
     const value = playerId === winnerId ? 0 : handValue(hand);
     perPlayerCardsLeftValue[playerId] = value;
-    if (playerId !== winnerId) pointsAwardedToWinner += value;
+    if (playerId === winnerId) continue;
+    const onWinningTeam = teamOf && winnerTeam !== undefined && teamOf[playerId] === winnerTeam;
+    if (!onWinningTeam) pointsAwardedToWinner += value;
   }
   return { winnerId, perPlayerCardsLeftValue, pointsAwardedToWinner };
 }

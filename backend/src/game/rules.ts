@@ -56,6 +56,7 @@ export function drawCards(game: GameState, playerId: string, count: number): Car
     drawn.push(card);
   }
   game.hands[playerId] = [...(game.hands[playerId] ?? []), ...drawn];
+  if (drawn.length > 0) refreshPendingUnoCall(game, playerId);
   return drawn;
 }
 
@@ -171,17 +172,27 @@ function advanceTurn(game: GameState, steps = 1): void {
   game.turnIndex = nextIndex(game.turnIndex, game.direction, game.turnOrder.length, steps);
 }
 
+/** Keeps pendingUnoCall in sync with a player's current hand size — call this
+ * for every player whose hand size just changed, not only the player who
+ * played a card, or a stale/missing Uno call can desync from reality (e.g.
+ * after Wild Swap Hands, Wild Shuffle Hands, or a Draw Two/Wild Draw Four
+ * penalty landing on an already-one-card hand). */
+function refreshPendingUnoCall(game: GameState, playerId: string): void {
+  const count = game.hands[playerId]?.length ?? 0;
+  if (count === 1) {
+    game.pendingUnoCall = { playerId };
+  } else if (game.pendingUnoCall?.playerId === playerId) {
+    game.pendingUnoCall = null;
+  }
+}
+
 function afterHandChange(game: GameState, playerId: string, events: EngineEvent[]): boolean {
   const count = game.hands[playerId]?.length ?? 0;
   if (count === 0) {
     events.push({ type: 'round_ended', winnerId: playerId });
     return true;
   }
-  if (count === 1) {
-    game.pendingUnoCall = { playerId };
-  } else if (game.pendingUnoCall?.playerId === playerId) {
-    game.pendingUnoCall = null;
-  }
+  refreshPendingUnoCall(game, playerId);
   return false;
 }
 
@@ -196,6 +207,9 @@ export interface PlayCardInput {
 export interface HouseRuleOptions {
   /** "For two players: Reverse works like Skip" — only meaningful with exactly 2 players. */
   twoPlayerReverseIsSkip?: boolean;
+  /** 2v2 Team Mode: player id -> team id. When set, Wild Swap Hands may not
+   * target a teammate (swapping with yourself, in effect). */
+  teamOf?: Record<string, 0 | 1>;
 }
 
 export function playCard(game: GameState, input: PlayCardInput, houseRules: HouseRuleOptions = {}): EngineEvent[] {
@@ -237,6 +251,11 @@ export function playCard(game: GameState, input: PlayCardInput, houseRules: Hous
     throw new IllegalActionError('invalid_color', 'Chosen color must be red, yellow, green, or blue.');
   }
 
+  // Captured before activeColor is overwritten below, so the Wild Draw Four
+  // legality check (which color the player was actually required to match)
+  // never reads the player's own just-chosen replacement color.
+  const priorActiveColor = game.activeColor;
+
   // Move the card.
   game.hands[playerId] = hand.filter((c) => c.id !== cardId);
   game.discardPile.push(card);
@@ -267,17 +286,21 @@ export function playCard(game: GameState, input: PlayCardInput, houseRules: Hous
     }
     case 'wild_draw_four': {
       const targetId = game.turnOrder[nextIndex(game.turnIndex, game.direction, game.turnOrder.length, 1)];
-      const hadAlternative = hasLegalAlternative(hand, cardId, topCard.color !== 'wild' ? topCard.color : game.activeColor);
+      const hadAlternative = hasLegalAlternative(hand, cardId, topCard.color !== 'wild' ? topCard.color : priorActiveColor);
       const drawnCards = drawCards(game, targetId, 4);
-      game.pendingChallenge = {
-        playerId,
-        hadLegalAlternative: hadAlternative,
-        targetPlayerId: targetId,
-        drawnCardIds: drawnCards.map((c) => c.id),
-      };
-      events.push({ type: 'challenge_opened', byPlayerId: playerId });
       events.push({ type: 'penalty_draw', playerId: targetId, count: drawnCards.length, reason: 'wild_draw_four' });
-      if (!won) advanceTurn(game, 2);
+      // A winning last card still applies its draw penalty, but there's no
+      // one left to resolve a challenge against, so don't open one.
+      if (!won) {
+        game.pendingChallenge = {
+          playerId,
+          hadLegalAlternative: hadAlternative,
+          targetPlayerId: targetId,
+          drawnCardIds: drawnCards.map((c) => c.id),
+        };
+        events.push({ type: 'challenge_opened', byPlayerId: playerId });
+        advanceTurn(game, 2);
+      }
       break;
     }
     case 'wild_swap_hands': {
@@ -292,10 +315,15 @@ export function playCard(game: GameState, input: PlayCardInput, houseRules: Hous
         if (targetId === playerId) {
           throw new IllegalActionError('invalid_target', 'Choose a different player to swap with.');
         }
+        if (houseRules.teamOf && houseRules.teamOf[targetId] === houseRules.teamOf[playerId]) {
+          throw new IllegalActionError('invalid_target', 'Choose an opposing player to swap with.');
+        }
         const myHand = game.hands[playerId] ?? [];
         const theirHand = game.hands[targetId];
         game.hands[playerId] = theirHand;
         game.hands[targetId] = myHand;
+        refreshPendingUnoCall(game, playerId);
+        refreshPendingUnoCall(game, targetId);
         advanceTurn(game, 1);
       }
       break;
@@ -314,6 +342,7 @@ export function playCard(game: GameState, input: PlayCardInput, houseRules: Hous
           dealIdx = nextIndex(dealIdx, game.direction, order.length, 1);
         }
         game.hands = newHands;
+        for (const id of order) refreshPendingUnoCall(game, id);
         advanceTurn(game, 1);
       }
       break;
@@ -414,7 +443,11 @@ export function challengeWildDrawFour(game: GameState, challengerId: string): En
   const drawnSet = new Set(pending.drawnCardIds);
   game.hands[pending.targetPlayerId] = targetHand.filter((c) => !drawnSet.has(c.id));
   const returnedCards = targetHand.filter((c) => drawnSet.has(c.id));
-  game.deck = [...game.deck, ...returnedCards];
+  // Shuffle the returned cards back in rather than appending them — otherwise
+  // the very next drawCards() call (guilty branch, a few lines below) would
+  // pop these exact cards straight back off in reverse order.
+  game.deck = shuffle([...game.deck, ...returnedCards]);
+  refreshPendingUnoCall(game, pending.targetPlayerId);
 
   if (pending.hadLegalAlternative) {
     // Guilty: the original player draws 4 instead, and the challenger's turn is restored.
@@ -433,9 +466,19 @@ export function challengeWildDrawFour(game: GameState, challengerId: string): En
   return events;
 }
 
-/** Clears an unresolved Wild Draw Four challenge once its window has passed. */
-export function expireChallengeIfPast(game: GameState): void {
-  if (game.pendingChallenge && game.turnOrder[game.turnIndex] !== game.pendingChallenge.targetPlayerId) {
-    game.pendingChallenge = null;
+/** The Wild Draw Four target accepts the 4 cards instead of challenging —
+ * clears the pending challenge with no further penalty (the draw already
+ * happened optimistically when the card was played). Also used as the
+ * grace-period timeout outcome if the target disconnects instead of acting. */
+export function declineChallenge(game: GameState, playerId: string): void {
+  const pending = game.pendingChallenge;
+  if (!pending) {
+    throw new IllegalActionError('nothing_to_challenge', 'There is no Wild Draw Four to challenge.');
   }
+  if (pending.targetPlayerId !== playerId) {
+    throw new IllegalActionError('not_your_challenge', 'Only the player who drew can accept or challenge.');
+  }
+  game.pendingChallenge = null;
+  game.version += 1;
+  game.updatedAt = new Date();
 }

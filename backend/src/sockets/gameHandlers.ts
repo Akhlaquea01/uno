@@ -5,25 +5,35 @@ import {
   type CatchUnoIntent,
   type ChallengeWildDrawFourIntent,
   type ChooseStartColorIntent,
+  type DeclineChallengeIntent,
   type DrawCardIntent,
   type MatchEndedPayload,
   type PassTurnIntent,
   type PlayCardIntent,
   type RoundResultView,
+  type TeamId,
 } from '@uno/shared';
 import { RoomModel } from '../models/Room';
 import { gameService, type ActionOutcome } from '../services/GameService';
-import { broadcastGameState, broadcastRoomState, emitError, maybeScheduleAutoSkip } from './views';
+import {
+  broadcastGameState,
+  broadcastRoomState,
+  emitError,
+  maybeScheduleAutoSkip,
+  maybeScheduleChallengeAutoDecline,
+} from './views';
 
 function toRoundResultView(doc: any): RoundResultView {
   return {
     roomCode: doc.roomCode,
     roundNumber: doc.roundNumber,
     winnerId: doc.winnerId,
+    winningTeamId: (doc.winningTeamId ?? undefined) as TeamId | undefined,
     scores: doc.scores.map((s: any) => ({
       playerId: s.playerId,
       displayName: s.displayName,
       cardsLeftValue: s.cardsLeftValue,
+      teamId: (s.teamId ?? undefined) as TeamId | undefined,
     })),
     endedAt: (doc.endedAt ?? new Date()).toISOString(),
   };
@@ -34,7 +44,10 @@ async function broadcastOutcome(io: Server, roomCode: string, outcome: ActionOut
   if (!room) return;
 
   broadcastGameState(io, room, outcome.game);
-  if (!outcome.roundEnded) maybeScheduleAutoSkip(io, room, outcome.game);
+  if (!outcome.roundEnded) {
+    maybeScheduleAutoSkip(io, room, outcome.game);
+    maybeScheduleChallengeAutoDecline(io, room, outcome.game);
+  }
 
   if (outcome.roundEnded && outcome.roundResult) {
     io.to(roomCode).emit(SOCKET_EVENTS.GAME_ROUND_ENDED, toRoundResultView(outcome.roundResult));
@@ -43,9 +56,18 @@ async function broadcastOutcome(io: Server, roomCode: string, outcome: ActionOut
 
   if (outcome.matchEnded) {
     const winner = [...room.players].sort((a, b) => b.matchScore - a.matchScore)[0];
+    const winningTeamId = (
+      winner?.teamId === 0 || winner?.teamId === 1 ? winner.teamId : undefined
+    ) as TeamId | undefined;
     const payload: MatchEndedPayload = {
       winnerId: winner?.id ?? '',
-      finalScores: room.players.map((p) => ({ playerId: p.id, displayName: p.displayName, total: p.matchScore })),
+      winningTeamId,
+      finalScores: room.players.map((p) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        total: p.matchScore,
+        teamId: (p.teamId ?? undefined) as TeamId | undefined,
+      })),
     };
     io.to(roomCode).emit(SOCKET_EVENTS.GAME_MATCH_ENDED, payload);
   }
@@ -117,7 +139,9 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
   socket.on(SOCKET_EVENTS.GAME_CATCH_UNO, async (payload: CatchUnoIntent) => {
     try {
-      const outcome = await gameService.catchUno(payload.roomCode, payload.targetPlayerId);
+      const pid = playerId();
+      if (!pid) return;
+      const outcome = await gameService.catchUno(payload.roomCode, pid, payload.targetPlayerId);
       await broadcastOutcome(io, payload.roomCode, outcome);
     } catch (err) {
       emitError(socket, err);
@@ -129,6 +153,17 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       const pid = playerId();
       if (!pid) return;
       const outcome = await gameService.challengeWildDrawFour(payload.roomCode, pid);
+      await broadcastOutcome(io, payload.roomCode, outcome);
+    } catch (err) {
+      emitError(socket, err);
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.GAME_DECLINE_CHALLENGE, async (payload: DeclineChallengeIntent) => {
+    try {
+      const pid = playerId();
+      if (!pid) return;
+      const outcome = await gameService.declineChallenge(payload.roomCode, pid);
       await broadcastOutcome(io, payload.roomCode, outcome);
     } catch (err) {
       emitError(socket, err);

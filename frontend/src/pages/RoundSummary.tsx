@@ -29,12 +29,14 @@ export default function RoundSummary() {
   const isHost = room?.players.find((p) => p.id === playerId)?.isHost ?? false;
   const latestRound = results?.rounds[results.rounds.length - 1];
   const matchEnded = room?.status === 'match_ended';
+  const teamMode = (latestRound?.scores ?? results?.matchScores ?? []).some((s) => s.teamId !== undefined);
+  const teamLabel = (teamId: 0 | 1) => (teamId === 0 ? 'Team A' : 'Team B');
 
   return (
     <div className="round-summary">
       <h1>{matchEnded ? 'Match over!' : 'Round over'}</h1>
 
-      {latestRound && (
+      {latestRound && !teamMode && (
         <ul className="score-list">
           {latestRound.scores.map((s) => (
             <li key={s.playerId} className={s.playerId === latestRound.winnerId ? 'winner' : ''}>
@@ -44,17 +46,59 @@ export default function RoundSummary() {
         </ul>
       )}
 
-      <h2>Match score</h2>
-      <ul className="score-list">
-        {results?.matchScores
-          .slice()
-          .sort((a, b) => b.total - a.total)
-          .map((s) => (
-            <li key={s.playerId}>
-              {s.displayName}: {s.total}
-            </li>
+      {latestRound && teamMode && (
+        <div className="team-score-groups">
+          {([0, 1] as const).map((teamId) => (
+            <div key={teamId}>
+              <h3>
+                {teamLabel(teamId)}
+                {latestRound.winningTeamId === teamId ? ' — won this round!' : ''}
+              </h3>
+              <ul className="score-list">
+                {latestRound.scores
+                  .filter((s) => s.teamId === teamId)
+                  .map((s) => (
+                    <li key={s.playerId} className={s.playerId === latestRound.winnerId ? 'winner' : ''}>
+                      {s.displayName}: {s.playerId === latestRound.winnerId ? 'Won!' : `${s.cardsLeftValue} pts left`}
+                    </li>
+                  ))}
+              </ul>
+            </div>
           ))}
-      </ul>
+        </div>
+      )}
+
+      <h2>Match score</h2>
+      {!teamMode && (
+        <ul className="score-list">
+          {results?.matchScores
+            .slice()
+            .sort((a, b) => b.total - a.total)
+            .map((s) => (
+              <li key={s.playerId}>
+                {s.displayName}: {s.total}
+              </li>
+            ))}
+        </ul>
+      )}
+      {teamMode && (
+        <div className="team-score-groups">
+          {([0, 1] as const).map((teamId) => (
+            <div key={teamId}>
+              <h3>{teamLabel(teamId)}</h3>
+              <ul className="score-list">
+                {results?.matchScores
+                  .filter((s) => s.teamId === teamId)
+                  .map((s) => (
+                    <li key={s.playerId}>
+                      {s.displayName}: {s.total}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
 
       {matchEnded ? (
         <button type="button" onClick={() => navigate('/')}>

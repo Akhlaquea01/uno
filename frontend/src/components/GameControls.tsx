@@ -9,6 +9,7 @@ export interface GameControlsProps {
   onCallUno: () => void;
   onCatchUno: (targetPlayerId: string) => void;
   onChallenge: () => void;
+  onDeclineChallenge: () => void;
 }
 
 export default function GameControls({
@@ -20,6 +21,7 @@ export default function GameControls({
   onCallUno,
   onCatchUno,
   onChallenge,
+  onDeclineChallenge,
 }: GameControlsProps) {
   const isMyTurn = game.turnPlayerId === myPlayerId;
   const iMustDecide = game.pendingDrawDecision?.playerId === myPlayerId;
@@ -43,9 +45,14 @@ export default function GameControls({
         </button>
       )}
       {iCanChallenge && (
-        <button type="button" className="challenge-btn" onClick={onChallenge}>
-          Challenge!
-        </button>
+        <>
+          <button type="button" className="challenge-btn" onClick={onChallenge}>
+            Challenge!
+          </button>
+          <button type="button" className="accept-btn" onClick={onDeclineChallenge}>
+            Accept the draw
+          </button>
+        </>
       )}
       {iCanCallUno && (
         <button type="button" className="uno-btn" onClick={onCallUno}>
