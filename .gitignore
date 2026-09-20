@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# Spec Kit machine-local state
+.specify/feature.json
