@@ -1,35 +1,52 @@
 import type { Card as CardType } from '@uno/shared';
 
-const COLOR_HEX: Record<CardType['color'], string> = {
-  red: '#e63946',
-  yellow: '#f4c430',
-  green: '#2a9d3f',
-  blue: '#1d6fd6',
-  wild: '#2b2d31',
-};
-
-function label(card: CardType): string {
+function symbol(card: CardType): string {
   switch (card.type.kind) {
     case 'number':
       return String(card.type.value);
     case 'skip':
-      return '⦸';
+      return '⊘';
     case 'reverse':
       return '⇄';
     case 'draw_two':
       return '+2';
     case 'wild':
-      return 'WILD';
+      return 'W';
     case 'wild_draw_four':
       return '+4';
     case 'wild_swap_hands':
       return 'SWAP';
     case 'wild_shuffle_hands':
-      return 'SHUFFLE';
+      return 'SHFL';
     case 'wild_customizable':
       return card.type.text || '?';
     default:
       return '?';
+  }
+}
+
+function describe(card: CardType): string {
+  switch (card.type.kind) {
+    case 'number':
+      return String(card.type.value);
+    case 'skip':
+      return 'skip';
+    case 'reverse':
+      return 'reverse';
+    case 'draw_two':
+      return 'draw two';
+    case 'wild':
+      return 'wild';
+    case 'wild_draw_four':
+      return 'wild draw four';
+    case 'wild_swap_hands':
+      return 'wild swap hands';
+    case 'wild_shuffle_hands':
+      return 'wild shuffle hands';
+    case 'wild_customizable':
+      return card.type.text ? `wild: ${card.type.text}` : 'blank wild';
+    default:
+      return 'card';
   }
 }
 
@@ -38,21 +55,33 @@ export interface CardProps {
   onClick?: () => void;
   disabled?: boolean;
   faceDown?: boolean;
+  small?: boolean;
 }
 
-export default function Card({ card, onClick, disabled, faceDown }: CardProps) {
+export default function Card({ card, onClick, disabled, faceDown, small }: CardProps) {
   if (faceDown) {
-    return <div className="uno-card uno-card-back" aria-hidden="true" />;
+    return (
+      <div className={`uno-card uno-card-back ${small ? 'uno-card-small' : ''}`} aria-hidden="true">
+        <span>UNO</span>
+      </div>
+    );
   }
+
+  const label = symbol(card);
+
   return (
     <button
       type="button"
-      className="uno-card"
-      style={{ backgroundColor: COLOR_HEX[card.color] }}
+      className={`uno-card card-${card.color} ${small ? 'uno-card-small' : ''}`}
+      aria-label={`${describe(card)} ${card.color} card`}
       onClick={onClick}
       disabled={disabled || !onClick}
     >
-      <span className="uno-card-label">{label(card)}</span>
+      <span className="card-corner">{label}</span>
+      <span className="card-oval" aria-hidden="true">
+        <span>{label}</span>
+      </span>
+      <span className="card-corner card-corner-bottom">{label}</span>
     </button>
   );
 }

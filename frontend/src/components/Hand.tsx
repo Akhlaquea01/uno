@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { Card as CardType, Color } from '@uno/shared';
 import Card from './Card';
 
@@ -13,6 +13,17 @@ export interface HandProps {
   /** Other seated players, for the Wild Swap Hands target picker. */
   otherPlayers: { id: string; displayName: string }[];
   onPlay: (cardId: string, chosenColor?: Exclude<Color, 'wild'>, targetPlayerId?: string) => void;
+}
+
+/** Spreads the hand into a fan: wider hands get a flatter spread so cards
+ * stay legible instead of overlapping into an unreadable stack. */
+function fanStyle(index: number, total: number): CSSProperties {
+  if (total <= 1) return {};
+  const spread = Math.min(46, 6 + total * 3.5);
+  const step = spread / (total - 1);
+  const angle = -spread / 2 + index * step;
+  const lift = Math.abs(angle) * 0.55;
+  return { transform: `rotate(${angle}deg) translateY(${lift}px)`, zIndex: index };
 }
 
 export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, onPlay }: HandProps) {
@@ -54,14 +65,15 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
 
   return (
     <div className="hand">
-      <div className="hand-strip">
-        {cards.map((card) => (
-          <Card
-            key={card.id}
-            card={card}
-            disabled={!isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId)}
-            onClick={() => handleClick(card)}
-          />
+      <div className="card-hand">
+        {cards.map((card, index) => (
+          <span className="card-slot" key={card.id} style={fanStyle(index, cards.length)}>
+            <Card
+              card={card}
+              disabled={!isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId)}
+              onClick={() => handleClick(card)}
+            />
+          </span>
         ))}
       </div>
 
@@ -69,16 +81,18 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
         <div className="color-picker-overlay">
           <div className="color-picker">
             <p>Choose a color</p>
-            {REAL_COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`color-swatch color-${color}`}
-                onClick={() => chooseColor(color)}
-              >
-                {color}
-              </button>
-            ))}
+            <div className="color-swatch-grid">
+              {REAL_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`color-swatch color-${color}`}
+                  onClick={() => chooseColor(color)}
+                >
+                  {color}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -88,7 +102,7 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
           <div className="color-picker">
             <p>Swap hands with…</p>
             {otherPlayers.map((p) => (
-              <button key={p.id} type="button" onClick={() => chooseTarget(p.id)}>
+              <button key={p.id} type="button" className="btn-outline" onClick={() => chooseTarget(p.id)}>
                 {p.displayName}
               </button>
             ))}
