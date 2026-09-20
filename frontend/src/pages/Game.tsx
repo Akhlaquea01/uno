@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { RotateCcw, RotateCw, Trophy } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { RotateCcw, RotateCw, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { SOCKET_EVENTS, type Color } from '@uno/shared';
 import { useGameState } from '../hooks/useGameState';
 import { getStoredIdentity } from '../services/identity';
@@ -8,6 +9,7 @@ import OrientationGate from '../components/OrientationGate';
 import Card from '../components/Card';
 import Hand from '../components/Hand';
 import GameControls from '../components/GameControls';
+import { isSoundEnabled, playDrawSound, setSoundEnabled } from '../services/sound';
 
 const REAL_COLORS: Exclude<Color, 'wild'>[] = ['red', 'yellow', 'green', 'blue'];
 
@@ -22,6 +24,7 @@ export default function Game() {
   const identity = getStoredIdentity()!;
   const fallbackDisplayName = (location.state as { displayName?: string } | null)?.displayName ?? identity.name;
   const { socket, room, game, playerId, error, clearError } = useGameState(roomCode, fallbackDisplayName);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
 
   useEffect(() => {
     if (room?.status === 'lobby') {
@@ -50,6 +53,18 @@ export default function Game() {
   const iCanChallenge = game.pendingChallenge?.targetPlayerId === playerId;
   const unoCaller = room.players.find((p) => p.id === game.pendingUnoCall?.playerId);
   const canDraw = isMyTurn && !myPendingDraw && !game.pendingChallenge;
+
+  const drawCard = () => {
+    if (!canDraw) return;
+    playDrawSound();
+    socket.emit(SOCKET_EVENTS.GAME_DRAW_CARD, { roomCode });
+  };
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundEnabled(next);
+    setSoundOn(next);
+  };
 
   let statusMessage: string;
   if (game.pendingChallenge) {
@@ -91,6 +106,14 @@ export default function Game() {
             <span className="direction" title={game.direction === 1 ? 'Clockwise' : 'Counter-clockwise'}>
               {game.direction === 1 ? <RotateCw /> : <RotateCcw />}
             </span>
+            <button
+              type="button"
+              className={`sound-toggle ${soundOn ? 'active' : ''}`}
+              aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
+              onClick={toggleSound}
+            >
+              {soundOn ? <Volume2 /> : <VolumeX />}
+            </button>
           </div>
         </header>
 
@@ -123,24 +146,56 @@ export default function Game() {
           <div className="table-ring" />
 
           <div className="center-pile">
-            <button
+            <motion.button
               type="button"
               className="deck-stack"
               disabled={!canDraw}
               aria-label={`Draw pile, ${game.drawPileCount} cards left`}
-              onClick={() => socket.emit(SOCKET_EVENTS.GAME_DRAW_CARD, { roomCode })}
+              onClick={drawCard}
+              whileTap={canDraw ? { scale: 0.92, rotate: -4 } : undefined}
             >
               <div className="deck-card">UNO</div>
               <span className="deck-count">{game.drawPileCount}</span>
-            </button>
+            </motion.button>
             <div className="discard-pile">
-              {game.discardTop ? <Card card={game.discardTop} small /> : <div className="uno-card uno-card-small uno-card-empty" />}
-              <span className={`active-color-swatch color-${game.activeColor}`} />
+              <AnimatePresence mode="popLayout">
+                {game.discardTop ? (
+                  <motion.div
+                    key={game.discardTop.id}
+                    initial={{ scale: 0.4, rotate: -25, opacity: 0 }}
+                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                    exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+                  >
+                    <Card card={game.discardTop} small />
+                  </motion.div>
+                ) : (
+                  <div className="uno-card uno-card-small uno-card-empty" />
+                )}
+              </AnimatePresence>
+              <motion.span
+                key={game.activeColor}
+                className={`active-color-swatch color-${game.activeColor}`}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+              />
             </div>
           </div>
 
           <div className="turn-status">
-            <span className="live-dot" /> {statusMessage}
+            <span className="live-dot" />
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={statusMessage}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+              >
+                {statusMessage}
+              </motion.span>
+            </AnimatePresence>
           </div>
 
           {awaitingStartColor && (
@@ -189,7 +244,7 @@ export default function Game() {
               game={game}
               room={room}
               myPlayerId={playerId}
-              onDraw={() => socket.emit(SOCKET_EVENTS.GAME_DRAW_CARD, { roomCode })}
+              onDraw={drawCard}
               onPass={() => socket.emit(SOCKET_EVENTS.GAME_PASS_TURN, { roomCode })}
               onCallUno={() => socket.emit(SOCKET_EVENTS.GAME_CALL_UNO, { roomCode })}
               onCatchUno={(targetPlayerId) => socket.emit(SOCKET_EVENTS.GAME_CATCH_UNO, { roomCode, targetPlayerId })}
@@ -206,11 +261,20 @@ export default function Game() {
           <span>{room.players.length} players</span>
         </footer>
 
-        {error && (
-          <p className="error toast" onClick={clearError}>
-            {error.message}
-          </p>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.p
+              className="error toast"
+              onClick={clearError}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.2 }}
+            >
+              {error.message}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
     </OrientationGate>
   );

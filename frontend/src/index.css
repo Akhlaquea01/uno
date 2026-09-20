@@ -168,6 +168,25 @@ button:not(:disabled):hover {
 
 /* ---------- Page shell / panel ---------- */
 
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.identity-gate,
+.home,
+.lobby,
+.round-summary,
+.uno-game {
+  animation: page-fade-in 0.35s ease both;
+}
+
 .identity-gate,
 .home,
 .lobby,
@@ -175,6 +194,21 @@ button:not(:disabled):hover {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.panel {
+  animation: page-fade-in 0.4s 0.05s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .identity-gate,
+  .home,
+  .lobby,
+  .round-summary,
+  .uno-game,
+  .panel {
+    animation: none;
+  }
 }
 
 .page-content {
@@ -445,6 +479,25 @@ button:not(:disabled):hover {
   width: 17px;
 }
 
+.sound-toggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.sound-toggle.active {
+  color: var(--yellow);
+}
+
+.sound-toggle svg {
+  width: 16px;
+}
+
 .game-board {
   position: relative;
   flex: 1;
@@ -491,6 +544,10 @@ button:not(:disabled):hover {
   border-radius: 999px;
   border: 2px solid transparent;
   background: #0000002e;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    opacity 0.25s ease;
   color: #fff;
 }
 
@@ -601,7 +658,7 @@ button:not(:disabled):hover {
   justify-content: center;
 }
 
-.discard-pile .uno-card:disabled {
+.discard-pile .uno-card.uno-card-disabled {
   filter: none;
 }
 
@@ -686,16 +743,31 @@ button:not(:disabled):hover {
   flex: 0 0 auto;
   margin-left: -14px;
   transform-origin: bottom center;
-  transition: transform 0.12s ease;
+  touch-action: none;
+  cursor: grab;
 }
 
 .card-slot:first-child {
   margin-left: 0;
 }
 
-.card-slot:has(button:not(:disabled)):hover {
-  transform: translateY(-10px) !important;
-  z-index: 5 !important;
+.card-slot[aria-disabled='true'] {
+  cursor: default;
+}
+
+.card-slot:active {
+  cursor: grabbing;
+}
+
+.card-slot:not([aria-disabled='true']):hover .uno-card {
+  filter: brightness(1.12);
+  box-shadow: 0 8px 16px #10251cb3;
+}
+
+.card-slot:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 3px;
+  border-radius: 9px;
 }
 
 .uno-card {
@@ -715,9 +787,8 @@ button:not(:disabled):hover {
   box-shadow: 0 5px 8px #10251c99;
 }
 
-.uno-card:disabled {
+.uno-card.uno-card-disabled {
   filter: saturate(0.6) brightness(0.75);
-  cursor: not-allowed;
 }
 
 .card-red {

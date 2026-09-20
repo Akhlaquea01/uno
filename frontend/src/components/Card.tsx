@@ -52,13 +52,14 @@ function describe(card: CardType): string {
 
 export interface CardProps {
   card: CardType;
-  onClick?: () => void;
+  /** Visual-only dimming — interactivity (click/drag/keyboard) is handled by
+   * the caller, since Hand wraps each card in a draggable motion element. */
   disabled?: boolean;
   faceDown?: boolean;
   small?: boolean;
 }
 
-export default function Card({ card, onClick, disabled, faceDown, small }: CardProps) {
+export default function Card({ card, disabled, faceDown, small }: CardProps) {
   if (faceDown) {
     return (
       <div className={`uno-card uno-card-back ${small ? 'uno-card-small' : ''}`} aria-hidden="true">
@@ -70,18 +71,15 @@ export default function Card({ card, onClick, disabled, faceDown, small }: CardP
   const label = symbol(card);
 
   return (
-    <button
-      type="button"
-      className={`uno-card card-${card.color} ${small ? 'uno-card-small' : ''}`}
+    <div
+      className={`uno-card card-${card.color} ${small ? 'uno-card-small' : ''} ${disabled ? 'uno-card-disabled' : ''}`}
       aria-label={`${describe(card)} ${card.color} card`}
-      onClick={onClick}
-      disabled={disabled || !onClick}
     >
       <span className="card-corner">{label}</span>
       <span className="card-oval" aria-hidden="true">
         <span>{label}</span>
       </span>
       <span className="card-corner card-corner-bottom">{label}</span>
-    </button>
+    </div>
   );
 }

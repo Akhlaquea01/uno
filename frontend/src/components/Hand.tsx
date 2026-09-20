@@ -1,8 +1,14 @@
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
+import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
 import type { Card as CardType, Color } from '@uno/shared';
 import Card from './Card';
+import { playCardSound } from '../services/sound';
 
 const REAL_COLORS: Exclude<Color, 'wild'>[] = ['red', 'yellow', 'green', 'blue'];
+
+/** Dragging a card up past this many pixels counts as "play it", mirroring
+ * the flick-to-play gesture of real UNO apps. */
+const PLAY_DRAG_THRESHOLD = -70;
 
 export interface HandProps {
   cards: CardType[];
@@ -17,13 +23,12 @@ export interface HandProps {
 
 /** Spreads the hand into a fan: wider hands get a flatter spread so cards
  * stay legible instead of overlapping into an unreadable stack. */
-function fanStyle(index: number, total: number): CSSProperties {
-  if (total <= 1) return {};
+function fanValues(index: number, total: number): { rotate: number; y: number } {
+  if (total <= 1) return { rotate: 0, y: 0 };
   const spread = Math.min(46, 6 + total * 3.5);
   const step = spread / (total - 1);
   const angle = -spread / 2 + index * step;
-  const lift = Math.abs(angle) * 0.55;
-  return { transform: `rotate(${angle}deg) translateY(${lift}px)`, zIndex: index };
+  return { rotate: angle, y: Math.abs(angle) * 0.55 };
 }
 
 export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, onPlay }: HandProps) {
@@ -38,12 +43,13 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
     setPendingColor(null);
   };
 
-  const handleClick = (card: CardType) => {
-    if (mustPlayCardId && card.id !== mustPlayCardId) return;
+  const attemptPlay = (card: CardType, disabled: boolean) => {
+    if (disabled) return;
     if (card.color === 'wild') {
       setPendingWildId(card.id);
       return;
     }
+    playCardSound();
     onPlay(card.id);
   };
 
@@ -52,6 +58,7 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
     if (needsTarget) {
       setPendingColor(color);
     } else {
+      playCardSound();
       onPlay(pendingWildId, color);
       reset();
     }
@@ -59,6 +66,7 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
 
   const chooseTarget = (targetPlayerId: string) => {
     if (!pendingWildId || !pendingColor) return;
+    playCardSound();
     onPlay(pendingWildId, pendingColor, targetPlayerId);
     reset();
   };
@@ -66,15 +74,45 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
   return (
     <div className="hand">
       <div className="card-hand">
-        {cards.map((card, index) => (
-          <span className="card-slot" key={card.id} style={fanStyle(index, cards.length)}>
-            <Card
-              card={card}
-              disabled={!isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId)}
-              onClick={() => handleClick(card)}
-            />
-          </span>
-        ))}
+        <AnimatePresence initial={false}>
+          {cards.map((card, index) => {
+            const { rotate, y } = fanValues(index, cards.length);
+            const disabled = !isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId);
+            const handlePlay = () => attemptPlay(card, disabled);
+            return (
+              <motion.div
+                key={card.id}
+                layout
+                className="card-slot"
+                style={{ rotate, y, zIndex: index }}
+                initial={{ opacity: 0, scale: 0.5, y: y + 50 }}
+                animate={{ opacity: 1, scale: 1, y }}
+                exit={{ opacity: 0, scale: 0.6, y: y - 100, transition: { duration: 0.22 } }}
+                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                drag={!disabled}
+                dragSnapToOrigin
+                dragElastic={0.25}
+                dragMomentum={false}
+                whileDrag={{ scale: 1.1, rotate: 0, zIndex: 30 }}
+                onDragEnd={(_e, info: PanInfo) => {
+                  if (info.offset.y < PLAY_DRAG_THRESHOLD) handlePlay();
+                }}
+                onTap={handlePlay}
+                role="button"
+                tabIndex={disabled ? -1 : 0}
+                aria-disabled={disabled}
+                onKeyDown={(e) => {
+                  if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    handlePlay();
+                  }
+                }}
+              >
+                <Card card={card} disabled={disabled} />
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
 
       {pendingWildId && !(needsTarget && pendingColor) && (
