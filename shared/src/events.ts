@@ -247,3 +247,5 @@ export const SOCKET_EVENTS = {
   PLAYER_PRESENCE: 'player:presence',
   GAME_ERROR: 'game:error',
 } as const;
+
+export * from './rules';

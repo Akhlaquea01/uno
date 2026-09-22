@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RotateCcw, RotateCw, Trophy, Volume2, VolumeX } from 'lucide-react';
-import { SOCKET_EVENTS, type Color } from '@uno/shared';
+import { SOCKET_EVENTS, isLegalPlay, type Color } from '@uno/shared';
 import { useGameState } from '../hooks/useGameState';
 import { getStoredIdentity } from '../services/identity';
 import OrientationGate from '../components/OrientationGate';
@@ -53,6 +53,13 @@ export default function Game() {
   const iCanChallenge = game.pendingChallenge?.targetPlayerId === playerId;
   const unoCaller = room.players.find((p) => p.id === game.pendingUnoCall?.playerId);
   const canDraw = isMyTurn && !myPendingDraw && !game.pendingChallenge;
+  const noPlayableCard =
+    isMyTurn &&
+    !awaitingStartColor &&
+    !myPendingDraw &&
+    !game.pendingChallenge &&
+    !!game.discardTop &&
+    !game.hand.some((c) => isLegalPlay(c, game.discardTop!, game.activeColor));
 
   const drawCard = () => {
     if (!canDraw) return;
@@ -78,6 +85,8 @@ export default function Game() {
       unoCaller.id === playerId ? 'Call UNO before someone catches you!' : `${unoCaller.displayName} needs to call UNO!`;
   } else if (awaitingStartColor) {
     statusMessage = iChooseStartColor ? 'Choose the starting color' : `Waiting for ${turnPlayerName} to choose a color…`;
+  } else if (noPlayableCard) {
+    statusMessage = 'No matching card — draw from the pile';
   } else if (isMyTurn) {
     statusMessage = 'Your turn';
   } else {
@@ -148,11 +157,13 @@ export default function Game() {
           <div className="center-pile">
             <motion.button
               type="button"
-              className="deck-stack"
+              className={`deck-stack ${noPlayableCard ? 'deck-stack-hint' : ''}`}
               disabled={!canDraw}
               aria-label={`Draw pile, ${game.drawPileCount} cards left`}
               onClick={drawCard}
               whileTap={canDraw ? { scale: 0.92, rotate: -4 } : undefined}
+              animate={noPlayableCard ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+              transition={noPlayableCard ? { scale: { duration: 0.9, repeat: Infinity, ease: 'easeInOut' } } : undefined}
             >
               <div className="deck-card">UNO</div>
               <span className="deck-count">{game.drawPileCount}</span>
@@ -232,6 +243,8 @@ export default function Game() {
               cards={game.hand}
               isMyTurn={isMyTurn && !awaitingStartColor}
               mustPlayCardId={myPendingDraw?.cardId ?? null}
+              topCard={game.discardTop}
+              activeColor={game.activeColor}
               otherPlayers={room.players
                 .filter((p) => p.id !== playerId && (!teamMode || p.teamId !== myTeamId))
                 .map((p) => ({ id: p.id, displayName: p.displayName }))}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
-import type { Card as CardType, Color } from '@uno/shared';
+import { isLegalPlay, type Card as CardType, type Color } from '@uno/shared';
 import Card from './Card';
 import { playCardSound } from '../services/sound';
 
@@ -16,6 +16,11 @@ export interface HandProps {
   /** Set when this player just drew a playable card and must play that exact
    * card or pass (pendingDrawDecision) — all other cards are disabled. */
   mustPlayCardId?: string | null;
+  /** Current discard-pile top card and active color, used to dim/disable cards
+   * that can't legally be played — so tapping is a genuine "pick from your
+   * playable cards" instead of a blind guess that bounces off a server error. */
+  topCard?: CardType | null;
+  activeColor?: Color;
   /** Other seated players, for the Wild Swap Hands target picker. */
   otherPlayers: { id: string; displayName: string }[];
   onPlay: (cardId: string, chosenColor?: Exclude<Color, 'wild'>, targetPlayerId?: string) => void;
@@ -31,7 +36,7 @@ function fanValues(index: number, total: number): { rotate: number; y: number } 
   return { rotate: angle, y: Math.abs(angle) * 0.55 };
 }
 
-export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, onPlay }: HandProps) {
+export default function Hand({ cards, isMyTurn, mustPlayCardId, topCard, activeColor, otherPlayers, onPlay }: HandProps) {
   const [pendingWildId, setPendingWildId] = useState<string | null>(null);
   const [pendingColor, setPendingColor] = useState<Exclude<Color, 'wild'> | null>(null);
 
@@ -77,7 +82,11 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
         <AnimatePresence initial={false}>
           {cards.map((card, index) => {
             const { rotate, y } = fanValues(index, cards.length);
-            const disabled = !isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId);
+            const outOfTurn = !isMyTurn || (!!mustPlayCardId && card.id !== mustPlayCardId);
+            // Once a specific card is forced (mustPlayCardId), legality is already
+            // guaranteed by the server, so only the turn/forced-card gate applies.
+            const illegal = !outOfTurn && !mustPlayCardId && !!topCard && !!activeColor && !isLegalPlay(card, topCard, activeColor);
+            const disabled = outOfTurn || illegal;
             const handlePlay = () => attemptPlay(card, disabled);
             return (
               <motion.div
@@ -87,13 +96,15 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, otherPlayers, on
                 style={{ rotate, y, zIndex: index }}
                 initial={{ opacity: 0, scale: 0.5, y: y + 50 }}
                 animate={{ opacity: 1, scale: 1, y }}
-                exit={{ opacity: 0, scale: 0.6, y: y - 100, transition: { duration: 0.22 } }}
-                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                exit={{ opacity: 0, scale: 0.6, y: y - 120, transition: { duration: 0.24, ease: 'easeOut' } }}
+                transition={{ type: 'spring', stiffness: 340, damping: 30, mass: 0.9 }}
                 drag={!disabled}
                 dragSnapToOrigin
-                dragElastic={0.25}
+                dragElastic={0.3}
                 dragMomentum={false}
-                whileDrag={{ scale: 1.1, rotate: 0, zIndex: 30 }}
+                dragTransition={{ bounceStiffness: 480, bounceDamping: 26 }}
+                whileDrag={{ scale: 1.12, rotate: 0, zIndex: 30, transition: { type: 'spring', stiffness: 500, damping: 32 } }}
+                whileHover={!disabled ? { y: y - 10, transition: { type: 'spring', stiffness: 400, damping: 24 } } : undefined}
                 onDragEnd={(_e, info: PanInfo) => {
                   if (info.offset.y < PLAY_DRAG_THRESHOLD) handlePlay();
                 }}
