@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from 'vitest';
-import type { GameView, RoomView, RoundResultView } from '@uno/shared';
+import type { GameErrorEvent, GameView, RoomView, RoundResultView } from '@uno/shared';
 import { SOCKET_EVENTS } from '@uno/shared';
 import { GameModel } from '../../src/models/Game';
 import { clearDatabase, connectClient, createRoom, emitAck, once, startTestServer } from './helpers';
@@ -14,7 +14,7 @@ async function createUser(baseUrl: string, name: string, email: string): Promise
   return body.userId;
 }
 
-describe('2v2 Team Mode', () => {
+describe('Team Mode (2v2 and 3v2)', () => {
   let server: Awaited<ReturnType<typeof startTestServer>>;
 
   beforeAll(async () => {
@@ -138,5 +138,111 @@ describe('2v2 Team Mode', () => {
     p2Socket.close();
     p3Socket.close();
     p4Socket.close();
+  });
+
+  it('seats a 5-player 3-2 split alternately, wrapping the larger team\'s extra player', async () => {
+    const hostUserId = await createUser(server.baseUrl, 'Host', 'team5-host@example.com');
+    const u2 = await createUser(server.baseUrl, 'P2', 'team5-p2@example.com');
+    const u3 = await createUser(server.baseUrl, 'P3', 'team5-p3@example.com');
+    const u4 = await createUser(server.baseUrl, 'P4', 'team5-p4@example.com');
+    const u5 = await createUser(server.baseUrl, 'P5', 'team5-p5@example.com');
+
+    const { roomCode, playerId: hostId } = await createRoom(server.baseUrl, {
+      userId: hostUserId,
+      hostDisplayName: 'Host',
+    });
+    const hostSocket = await connectClient(server.baseUrl);
+    const p2Socket = await connectClient(server.baseUrl);
+    const p3Socket = await connectClient(server.baseUrl);
+    const p4Socket = await connectClient(server.baseUrl);
+    const p5Socket = await connectClient(server.baseUrl);
+
+    await emitAck(hostSocket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: hostUserId, playerId: hostId, displayName: 'Host' });
+    await emitAck(p2Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u2, displayName: 'P2' });
+    await emitAck(p3Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u3, displayName: 'P3' });
+    await emitAck(p4Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u4, displayName: 'P4' });
+    await emitAck(p5Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u5, displayName: 'P5' });
+
+    hostSocket.emit(SOCKET_EVENTS.ROOM_UPDATE_SETTINGS, { roomCode, settings: { teamMode: true } });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+
+    // Host, P3, P5 on team 0 (3 players); P2, P4 on team 1 (2 players).
+    hostSocket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p2Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 1 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p3Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p4Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 1 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p5Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    const finalRoomState = await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+
+    const hostGamePromise = once<GameView>(hostSocket, SOCKET_EVENTS.GAME_STATE);
+    hostSocket.emit(SOCKET_EVENTS.ROOM_START, { roomCode });
+    await hostGamePromise;
+
+    // Interleaved seating puts the larger team's extra (3rd) player last, so
+    // turn order alternates [0,1,0,1] then wraps to a second team-0 turn.
+    const gameDocAfterStart = await GameModel.findOne({ roomCode });
+    const turnOrder = gameDocAfterStart!.turnOrder;
+    const teamById = new Map(finalRoomState.players.map((p) => [p.id, p.teamId]));
+    expect(turnOrder.map((id: string) => teamById.get(id))).toEqual([0, 1, 0, 1, 0]);
+
+    hostSocket.close();
+    p2Socket.close();
+    p3Socket.close();
+    p4Socket.close();
+    p5Socket.close();
+  });
+
+  it('rejects starting Team Mode at 5 players with an invalid split (4-1)', async () => {
+    const hostUserId = await createUser(server.baseUrl, 'Host', 'team5-bad-host@example.com');
+    const u2 = await createUser(server.baseUrl, 'P2', 'team5-bad-p2@example.com');
+    const u3 = await createUser(server.baseUrl, 'P3', 'team5-bad-p3@example.com');
+    const u4 = await createUser(server.baseUrl, 'P4', 'team5-bad-p4@example.com');
+    const u5 = await createUser(server.baseUrl, 'P5', 'team5-bad-p5@example.com');
+
+    const { roomCode, playerId: hostId } = await createRoom(server.baseUrl, {
+      userId: hostUserId,
+      hostDisplayName: 'Host',
+    });
+    const hostSocket = await connectClient(server.baseUrl);
+    const p2Socket = await connectClient(server.baseUrl);
+    const p3Socket = await connectClient(server.baseUrl);
+    const p4Socket = await connectClient(server.baseUrl);
+    const p5Socket = await connectClient(server.baseUrl);
+
+    await emitAck(hostSocket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: hostUserId, playerId: hostId, displayName: 'Host' });
+    await emitAck(p2Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u2, displayName: 'P2' });
+    await emitAck(p3Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u3, displayName: 'P3' });
+    await emitAck(p4Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u4, displayName: 'P4' });
+    await emitAck(p5Socket, SOCKET_EVENTS.ROOM_JOIN, { roomCode, userId: u5, displayName: 'P5' });
+
+    hostSocket.emit(SOCKET_EVENTS.ROOM_UPDATE_SETTINGS, { roomCode, settings: { teamMode: true } });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+
+    // 4 players on team 0, only 1 on team 1 — not a valid 3-2 split.
+    hostSocket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p2Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p3Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p4Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 0 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+    p5Socket.emit(SOCKET_EVENTS.ROOM_ASSIGN_TEAM, { roomCode, teamId: 1 });
+    await once<RoomView>(hostSocket, SOCKET_EVENTS.ROOM_STATE);
+
+    const errorPromise = once<GameErrorEvent>(hostSocket, SOCKET_EVENTS.GAME_ERROR);
+    hostSocket.emit(SOCKET_EVENTS.ROOM_START, { roomCode });
+    const error = await errorPromise;
+    expect(error.code).toBe('invalid_teams');
+
+    hostSocket.close();
+    p2Socket.close();
+    p3Socket.close();
+    p4Socket.close();
+    p5Socket.close();
   });
 });

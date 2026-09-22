@@ -87,19 +87,37 @@ export class GameService {
     return { state: toGameState(doc), expectedVersion: doc.version };
   }
 
-  /** Team Mode requires exactly 4 players, 2 per team, reseated so turn order
-   * naturally alternates between teams — rules.ts's turn-order math is
-   * entirely unaware of teams and needs no changes for this to work. */
+  /** Team Mode requires 4 players (2 per team) or 5 players (3-2 split),
+   * reseated so turn order alternates between teams as evenly as possible —
+   * rules.ts's turn-order math is entirely unaware of teams and needs no
+   * changes for this to work. With an uneven 3-2 split at 5 players, the
+   * larger team's third seat necessarily falls next to its own teammate once
+   * per lap (seat 4 -> seat 0) — an unavoidable consequence of an odd team. */
   private arrangeTeamSeats(room: InstanceType<typeof RoomModel>): void {
-    if (room.players.length !== 4) {
-      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 4 players.');
+    const count = room.players.length;
+    if (count !== 4 && count !== 5) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs 4 or 5 players.');
     }
     const teamA = room.players.filter((p) => p.teamId === 0);
     const teamB = room.players.filter((p) => p.teamId === 1);
-    if (teamA.length !== 2 || teamB.length !== 2) {
-      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 2 players per team.');
+    if (teamA.length + teamB.length !== count) {
+      throw new IllegalActionError('invalid_teams', 'Every player must pick a team.');
     }
-    [teamA[0], teamB[0], teamA[1], teamB[1]].forEach((p, i) => {
+    const sizes = [teamA.length, teamB.length].sort((a, b) => a - b);
+    const validSizes = count === 4 ? [2, 2] : [2, 3];
+    if (sizes[0] !== validSizes[0] || sizes[1] !== validSizes[1]) {
+      throw new IllegalActionError(
+        'invalid_teams',
+        count === 4 ? 'Team mode needs exactly 2 players per team.' : 'Team mode needs a 3-2 team split with 5 players.',
+      );
+    }
+    const seated: (typeof room.players)[number][] = [];
+    const maxLen = Math.max(teamA.length, teamB.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (teamA[i]) seated.push(teamA[i]);
+      if (teamB[i]) seated.push(teamB[i]);
+    }
+    seated.forEach((p, i) => {
       p.seat = i;
     });
   }

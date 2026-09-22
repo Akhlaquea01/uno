@@ -24,7 +24,7 @@ export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
 export type RoomStatus = 'lobby' | 'in_progress' | 'round_ended' | 'match_ended';
 export type Variant112 = 'off' | 'swap' | 'shuffle';
 
-/** 2v2 Team Mode: exactly 4 players, 2 per team. Team A = 0, Team B = 1. */
+/** Team Mode: 4 players (2v2) or 5 players (3v2 split). Team A = 0, Team B = 1. */
 export type TeamId = 0 | 1;
 
 export interface RoomSettings {
