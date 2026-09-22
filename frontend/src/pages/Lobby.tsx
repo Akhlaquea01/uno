@@ -32,15 +32,11 @@ export default function Lobby() {
   const players = room?.players ?? [];
   const teamACount = players.filter((p) => p.teamId === 0).length;
   const teamBCount = players.filter((p) => p.teamId === 1).length;
-  // Team Mode seats 4 players as 2v2, or 5 players as a 3-2 split (either team
-  // may hold the extra player) — see GameService.arrangeTeamSeats on the backend.
-  const validTeamSizes =
-    players.length === 4
-      ? [teamACount, teamBCount].sort().join(',') === '2,2'
-      : players.length === 5
-        ? [teamACount, teamBCount].sort().join(',') === '2,3'
-        : false;
-  const teamsReady = (players.length === 4 || players.length === 5) && validTeamSizes;
+  // Team Mode needs an even player count split evenly in half (2v2, 3v3, ...)
+  // — see GameService.arrangeTeamSeats on the backend. An odd count (5, 7...)
+  // can't split evenly, so those rooms just play a normal individual game.
+  const isEvenTeamSize = players.length >= 4 && players.length % 2 === 0;
+  const teamsReady = isEvenTeamSize && teamACount === players.length / 2 && teamBCount === players.length / 2;
   const canStart = teamMode ? teamsReady : players.length >= 2;
   const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/room/${roomCode}/lobby` : '';
 
@@ -76,9 +72,9 @@ export default function Lobby() {
         {teamMode && (
           <div className="team-picker">
             <p>
-              {players.length === 4 || players.length === 5
+              {isEvenTeamSize
                 ? 'Pick your team'
-                : `Team mode needs 4 or 5 players (${players.length} joined)`}
+                : `Team mode needs an even number of players, 4 or more (${players.length} joined)`}
             </p>
             <div className="team-columns">
               {([0, 1] as const).map((teamId) => (
@@ -191,7 +187,7 @@ export default function Lobby() {
               checked={settingsDraft.teamMode}
               onChange={(e) => setSettingsDraft({ ...settingsDraft, teamMode: e.target.checked })}
             />
-            Team Mode (4 players 2v2, or 5 players 3v2)
+            Team Mode (even players only — 2v2, 3v3, ...; odd counts play individually)
           </label>
 
           <button type="button" className="btn-outline" onClick={applySettings}>
@@ -209,7 +205,7 @@ export default function Lobby() {
             {canStart
               ? 'Start game'
               : teamMode
-                ? 'Waiting for 4 (2v2) or 5 (3v2) players, teams picked…'
+                ? 'Waiting for an even number of players, teams picked…'
                 : 'Waiting for at least 2 players…'}
           </button>
         ) : (

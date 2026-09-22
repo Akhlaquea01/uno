@@ -87,35 +87,28 @@ export class GameService {
     return { state: toGameState(doc), expectedVersion: doc.version };
   }
 
-  /** Team Mode requires 4 players (2 per team) or 5 players (3-2 split),
-   * reseated so turn order alternates between teams as evenly as possible —
-   * rules.ts's turn-order math is entirely unaware of teams and needs no
-   * changes for this to work. With an uneven 3-2 split at 5 players, the
-   * larger team's third seat necessarily falls next to its own teammate once
-   * per lap (seat 4 -> seat 0) — an unavoidable consequence of an odd team. */
+  /** Team Mode requires an even player count split evenly in half (4 -> 2v2,
+   * 6 -> 3v3, ...), reseated so turn order alternates between teams — rules.ts's
+   * turn-order math is entirely unaware of teams and needs no changes for this
+   * to work. An odd player count (5, 7, ...) can't split evenly, so it isn't a
+   * valid Team Mode room at all — those players just play a normal individual
+   * game instead. */
   private arrangeTeamSeats(room: InstanceType<typeof RoomModel>): void {
     const count = room.players.length;
-    if (count !== 4 && count !== 5) {
-      throw new IllegalActionError('invalid_teams', 'Team mode needs 4 or 5 players.');
+    if (count < 4 || count % 2 !== 0) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs an even number of players (4, 6, 8...).');
     }
     const teamA = room.players.filter((p) => p.teamId === 0);
     const teamB = room.players.filter((p) => p.teamId === 1);
     if (teamA.length + teamB.length !== count) {
       throw new IllegalActionError('invalid_teams', 'Every player must pick a team.');
     }
-    const sizes = [teamA.length, teamB.length].sort((a, b) => a - b);
-    const validSizes = count === 4 ? [2, 2] : [2, 3];
-    if (sizes[0] !== validSizes[0] || sizes[1] !== validSizes[1]) {
-      throw new IllegalActionError(
-        'invalid_teams',
-        count === 4 ? 'Team mode needs exactly 2 players per team.' : 'Team mode needs a 3-2 team split with 5 players.',
-      );
+    if (teamA.length !== count / 2 || teamB.length !== count / 2) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs an even split — the same number of players per team.');
     }
     const seated: (typeof room.players)[number][] = [];
-    const maxLen = Math.max(teamA.length, teamB.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (teamA[i]) seated.push(teamA[i]);
-      if (teamB[i]) seated.push(teamB[i]);
+    for (let i = 0; i < count / 2; i++) {
+      seated.push(teamA[i], teamB[i]);
     }
     seated.forEach((p, i) => {
       p.seat = i;
