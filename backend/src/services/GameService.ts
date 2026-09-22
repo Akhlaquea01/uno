@@ -87,19 +87,30 @@ export class GameService {
     return { state: toGameState(doc), expectedVersion: doc.version };
   }
 
-  /** Team Mode requires exactly 4 players, 2 per team, reseated so turn order
-   * naturally alternates between teams — rules.ts's turn-order math is
-   * entirely unaware of teams and needs no changes for this to work. */
+  /** Team Mode requires an even player count split evenly in half (4 -> 2v2,
+   * 6 -> 3v3, ...), reseated so turn order alternates between teams — rules.ts's
+   * turn-order math is entirely unaware of teams and needs no changes for this
+   * to work. An odd player count (5, 7, ...) can't split evenly, so it isn't a
+   * valid Team Mode room at all — those players just play a normal individual
+   * game instead. */
   private arrangeTeamSeats(room: InstanceType<typeof RoomModel>): void {
-    if (room.players.length !== 4) {
-      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 4 players.');
+    const count = room.players.length;
+    if (count < 4 || count % 2 !== 0) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs an even number of players (4, 6, 8...).');
     }
     const teamA = room.players.filter((p) => p.teamId === 0);
     const teamB = room.players.filter((p) => p.teamId === 1);
-    if (teamA.length !== 2 || teamB.length !== 2) {
-      throw new IllegalActionError('invalid_teams', 'Team mode needs exactly 2 players per team.');
+    if (teamA.length + teamB.length !== count) {
+      throw new IllegalActionError('invalid_teams', 'Every player must pick a team.');
     }
-    [teamA[0], teamB[0], teamA[1], teamB[1]].forEach((p, i) => {
+    if (teamA.length !== count / 2 || teamB.length !== count / 2) {
+      throw new IllegalActionError('invalid_teams', 'Team mode needs an even split — the same number of players per team.');
+    }
+    const seated: (typeof room.players)[number][] = [];
+    for (let i = 0; i < count / 2; i++) {
+      seated.push(teamA[i], teamB[i]);
+    }
+    seated.forEach((p, i) => {
       p.seat = i;
     });
   }
