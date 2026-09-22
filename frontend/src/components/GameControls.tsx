@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, Check, ShieldAlert, ShieldCheck, Hand as HandIcon, SkipForward } from 'lucide-react';
 import type { GameView, RoomView } from '@uno/shared';
 import { playUnoCall } from '../services/sound';
@@ -40,45 +40,52 @@ export default function GameControls({
     onCallUno();
   };
 
+  const enter = { initial: { opacity: 0, scale: 0.8, y: 8 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.8, y: 8 }, transition: { type: 'spring' as const, stiffness: 420, damping: 30 } };
+
   return (
     <div className="game-controls">
-      {isMyTurn && !iMustDecide && !game.pendingChallenge && (
-        <motion.button type="button" className="draw-button" onClick={onDraw} whileTap={{ scale: 0.94 }}>
-          <Plus /> Draw card
-        </motion.button>
-      )}
-      {iMustDecide && (
-        <motion.button type="button" className="draw-button" onClick={onPass} whileTap={{ scale: 0.94 }}>
-          <SkipForward /> Pass
-        </motion.button>
-      )}
-      {iCanChallenge && (
-        <>
-          <motion.button type="button" className="challenge-btn" onClick={onChallenge} whileTap={{ scale: 0.94 }}>
+      <AnimatePresence mode="popLayout">
+        {isMyTurn && !iMustDecide && !game.pendingChallenge && (
+          <motion.button key="draw" type="button" className="draw-button" onClick={onDraw} whileTap={{ scale: 0.94 }} {...enter}>
+            <Plus /> Draw card
+          </motion.button>
+        )}
+        {iMustDecide && (
+          <motion.button key="pass" type="button" className="draw-button" onClick={onPass} whileTap={{ scale: 0.94 }} {...enter}>
+            <SkipForward /> Pass
+          </motion.button>
+        )}
+        {iCanChallenge && (
+          <motion.button key="challenge" type="button" className="challenge-btn" onClick={onChallenge} whileTap={{ scale: 0.94 }} {...enter}>
             <ShieldAlert /> Challenge!
           </motion.button>
-          <motion.button type="button" className="accept-btn" onClick={onDeclineChallenge} whileTap={{ scale: 0.94 }}>
+        )}
+        {iCanChallenge && (
+          <motion.button key="accept" type="button" className="accept-btn" onClick={onDeclineChallenge} whileTap={{ scale: 0.94 }} {...enter}>
             <ShieldCheck /> Accept the draw
           </motion.button>
-        </>
-      )}
-      {iCanCallUno && (
-        <motion.button
-          type="button"
-          className="uno-button"
-          onClick={callUno}
-          whileTap={{ scale: 0.9 }}
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ scale: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' } }}
-        >
-          <Check /> UNO
-        </motion.button>
-      )}
-      {catchTarget && (
-        <motion.button type="button" className="catch-btn" onClick={() => onCatchUno(catchTarget.id)} whileTap={{ scale: 0.94 }}>
-          <HandIcon /> Catch {catchTarget.displayName}!
-        </motion.button>
-      )}
+        )}
+        {iCanCallUno && (
+          <motion.button
+            key="uno"
+            type="button"
+            className="uno-button"
+            onClick={callUno}
+            whileTap={{ scale: 0.9 }}
+            initial={enter.initial}
+            exit={enter.exit}
+            animate={{ opacity: 1, scale: [1, 1.06, 1], y: 0 }}
+            transition={{ scale: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' } }}
+          >
+            <Check /> UNO
+          </motion.button>
+        )}
+        {catchTarget && (
+          <motion.button key="catch" type="button" className="catch-btn" onClick={() => onCatchUno(catchTarget.id)} whileTap={{ scale: 0.94 }} {...enter}>
+            <HandIcon /> Catch {catchTarget.displayName}!
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

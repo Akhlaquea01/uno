@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Uno</string>
+    <string name="title_activity_main">Uno</string>
+    <string name="package_name">com.uno.realtime</string>
+    <string name="custom_url_scheme">com.uno.realtime</string>
+</resources>

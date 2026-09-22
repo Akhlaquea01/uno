@@ -1,4 +1,4 @@
-import type { Card, Color } from '@uno/shared';
+import { isLegalPlay, type Card, type Color } from '@uno/shared';
 import { buildDeck, shuffle } from './deck';
 import {
   IllegalActionError,
@@ -8,18 +8,9 @@ import {
   type PlayerState,
 } from './types';
 
-const REAL_COLORS: Exclude<Color, 'wild'>[] = ['red', 'yellow', 'green', 'blue'];
+export { isLegalPlay };
 
-export function isLegalPlay(card: Card, topCard: Card, activeColor: Color): boolean {
-  if (card.color === 'wild') return true;
-  if (card.color === activeColor) return true;
-  if (card.type.kind !== topCard.type.kind) return false;
-  if (card.type.kind === 'number' && topCard.type.kind === 'number') {
-    return card.type.value === topCard.type.value;
-  }
-  // Same action kind (skip/reverse/draw_two) matches regardless of color per the rules.
-  return true;
-}
+const REAL_COLORS: Exclude<Color, 'wild'>[] = ['red', 'yellow', 'green', 'blue'];
 
 function isWild(card: Card): boolean {
   return card.color === 'wild';
