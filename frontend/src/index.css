@@ -1033,6 +1033,11 @@ button:not(:disabled):hover {
   color: var(--yellow);
 }
 
+.mobile-game-menu-button,
+.mobile-game-menu-overlay {
+  display: none;
+}
+
 /* ---------- Rotate-device prompt (landscape-first, small screens only) ---------- */
 
 .rotate-prompt {
@@ -1087,8 +1092,122 @@ button:not(:disabled):hover {
 /* ---------- Small screens ---------- */
 
 @media (max-width: 700px) {
+  .game-topbar {
+    display: none;
+  }
+
+  .mobile-game-menu-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 8;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid #ffffff40;
+    background: #10261fdd;
+    color: #eef8f0;
+    display: grid;
+    place-items: center;
+  }
+
+  .mobile-game-menu-button svg {
+    width: 18px;
+  }
+
+  .mobile-game-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: grid;
+    place-items: center;
+    background: #00000090;
+  }
+
+  .mobile-game-menu-panel {
+    width: min(280px, calc(100vw - 24px));
+    padding: 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .mobile-game-menu-close {
+    align-self: flex-end;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+  }
+
+  .mobile-game-menu-close svg {
+    width: 16px;
+  }
+
+  .mobile-game-menu-room {
+    margin: 0;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+  }
+
+  .mobile-game-menu-mode {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .mobile-game-menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .mobile-game-menu-actions .direction,
+  .mobile-game-menu-actions .sound-toggle {
+    width: 100%;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid #ffffff30;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1d2b26;
+    color: #d9e9df;
+  }
+
+  .mobile-game-menu-actions .sound-toggle {
+    cursor: pointer;
+    border-color: #ffffff40;
+  }
+
+  .mobile-game-menu-actions .sound-toggle.active {
+    color: var(--yellow);
+  }
+
+  .mobile-game-menu-actions .direction svg,
+  .mobile-game-menu-actions .sound-toggle svg {
+    width: 16px;
+  }
+
+  .mobile-game-menu-actions .direction b,
+  .mobile-game-menu-actions .sound-toggle b {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   .game-board {
-    margin: 6px 6px 0;
+    margin: 4px 6px 0;
     border-radius: 24px;
   }
 
