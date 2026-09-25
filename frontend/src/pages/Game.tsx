@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { RotateCcw, RotateCw, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { Menu, RotateCcw, RotateCw, Trophy, Volume2, VolumeX, X } from 'lucide-react';
 import { SOCKET_EVENTS, isLegalPlay, type Color } from '@uno/shared';
 import { useGameState } from '../hooks/useGameState';
 import { getStoredIdentity } from '../services/identity';
@@ -25,6 +25,7 @@ export default function Game() {
   const fallbackDisplayName = (location.state as { displayName?: string } | null)?.displayName ?? identity.name;
   const { socket, room, game, playerId, error, clearError } = useGameState(roomCode, fallbackDisplayName);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (room?.status === 'lobby') {
@@ -125,6 +126,14 @@ export default function Game() {
             </button>
           </div>
         </header>
+        <button
+          type="button"
+          className="mobile-game-menu-button"
+          aria-label="Open game menu"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu />
+        </button>
 
         <section className="game-board" aria-label="UNO game board">
           <div className="opponent-strip">
@@ -273,6 +282,38 @@ export default function Game() {
           </span>
           <span>{room.players.length} players</span>
         </footer>
+
+        {mobileMenuOpen && (
+          <div className="mobile-game-menu-overlay" role="dialog" aria-modal="true" aria-label="Game menu">
+            <div className="mobile-game-menu-panel">
+              <button
+                type="button"
+                className="mobile-game-menu-close"
+                aria-label="Close game menu"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <X />
+              </button>
+              <p className="mobile-game-menu-room">ROOM {roomCode}</p>
+              <p className="mobile-game-menu-mode">{teamMode ? 'Team match' : 'Game in progress'}</p>
+              <div className="mobile-game-menu-actions">
+                <span className="direction" title={game.direction === 1 ? 'Clockwise' : 'Counter-clockwise'}>
+                  {game.direction === 1 ? <RotateCw /> : <RotateCcw />}
+                  <b>{game.direction === 1 ? 'Clockwise' : 'Counter-clockwise'}</b>
+                </span>
+                <button
+                  type="button"
+                  className={`sound-toggle ${soundOn ? 'active' : ''}`}
+                  aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
+                  onClick={toggleSound}
+                >
+                  {soundOn ? <Volume2 /> : <VolumeX />}
+                  <b>{soundOn ? 'Sound on' : 'Sound off'}</b>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <AnimatePresence>
           {error && (
