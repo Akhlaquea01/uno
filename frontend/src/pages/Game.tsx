@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, RotateCcw, RotateCw, Trophy, Volume2, VolumeX, X } from 'lucide-react';
 import { SOCKET_EVENTS, isLegalPlay, type Color } from '@uno/shared';
 import { useGameState } from '../hooks/useGameState';
+import { useLandscapeLock } from '../hooks/useLandscapeLock';
 import { getStoredIdentity } from '../services/identity';
 import OrientationGate from '../components/OrientationGate';
 import Card from '../components/Card';
@@ -26,6 +27,7 @@ export default function Game() {
   const { socket, room, game, playerId, error, clearError } = useGameState(roomCode, fallbackDisplayName);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useLandscapeLock();
 
   useEffect(() => {
     if (room?.status === 'lobby') {
