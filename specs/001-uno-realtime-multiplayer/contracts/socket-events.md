@@ -25,7 +25,7 @@ Types shared via `shared/src/events.ts`. Client → server events are
 | Event | Payload | Notes |
 |---|---|---|
 | `room:state` | `Room` (players' hands omitted) | Sent on any lobby/room-level change. |
-| `game:state` | `Game` view **scoped to the recipient** — own `hand: Card[]`, everyone else as `handCount: number` | Sent after every accepted intent. |
+| `game:state` | `Game` view **scoped to the recipient** — own `hand: Card[]`, everyone else as `handCount: number`. In Team Mode only, also `teammateHands: Record<playerId, Card[]>` for the recipient's teammates (view-only; never the recipient's own or an opponent's) | Sent after every accepted intent. |
 | `game:round_ended` | `RoundResult` | Includes winner and per-player scores. |
 | `game:match_ended` | `{ winnerId, finalScores }` | When a player's `matchScore` crosses `targetScore`. |
 | `player:presence` | `{ playerId, connectionStatus }` | On disconnect/reconnect/grace-timeout. |

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
 import { isLegalPlay, type Card as CardType, type Color } from '@uno/shared';
 import Card from './Card';
@@ -78,7 +78,10 @@ export default function Hand({ cards, isMyTurn, mustPlayCardId, topCard, activeC
 
   return (
     <div className="hand">
-      <div className="card-hand">
+      <div
+        className="card-hand"
+        style={{ '--n': cards.length, '--gaps': Math.max(cards.length - 1, 1) } as CSSProperties}
+      >
         <AnimatePresence initial={false}>
           {cards.map((card, index) => {
             const { rotate, y } = fanValues(index, cards.length);

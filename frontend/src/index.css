@@ -14,6 +14,7 @@
   --blue: #2e78d8;
   --radius-lg: 18px;
   --radius-md: 12px;
+  --card-w: 64px;
 }
 
 * {
@@ -393,7 +394,7 @@ button:not(:disabled):hover {
   font-size: 0.95rem;
 }
 
-/* ---------- Game page: horizontal felt table ---------- */
+/* ---------- Game page: full-screen felt table ---------- */
 
 .game-loading {
   height: 100dvh;
@@ -404,168 +405,262 @@ button:not(:disabled):hover {
 }
 
 .uno-game {
+  /* Everything on the table scales from the viewport height: cards grow on tall screens
+   * and shrink on short landscape phones with one rule instead of fixed size tiers. */
+  --card-w: clamp(40px, min(15vh, 11vw), 110px);
+  position: relative;
+  height: 100vh;
   height: 100svh;
-  background: var(--bg);
+  background: #1d4c3b;
   color: var(--text);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Long-press on a card must not select text or open the WebView context menu. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.game-topbar {
-  height: 44px;
-  padding: 0 16px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.game-topbar .game-brand {
-  justify-self: start;
-}
-
-.game-topbar .game-actions {
-  justify-self: end;
-}
-
-.game-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 20px;
-  font-weight: 900;
-  letter-spacing: -1px;
-}
-
-.game-brand strong span {
-  color: var(--red);
-}
-
-.game-title {
-  text-align: center;
-}
-
-.game-title span {
-  display: block;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-}
-
-.game-title b {
-  display: block;
-  margin-top: 3px;
-  font-size: 13px;
-}
-
-.game-actions {
-  display: flex;
-  gap: 6px;
-  min-width: 28px;
-  justify-content: flex-end;
-}
-
-.game-actions .direction {
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-}
-
-.game-actions .direction svg {
-  width: 17px;
-}
-
-.sound-toggle {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-
-.sound-toggle.active {
-  color: var(--yellow);
-}
-
-.sound-toggle svg {
-  width: 16px;
+@supports (height: 100svh) {
+  .uno-game {
+    --card-w: clamp(40px, min(15svh, 11vw), 110px);
+  }
 }
 
 .game-board {
   position: relative;
   flex: 1;
   min-height: 0;
-  margin: 8px 10px 0;
-  overflow: hidden;
-  border: 6px solid #27342f;
-  border-radius: 32px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'top top top'
+    'left center right'
+    'panel panel panel';
   background: radial-gradient(ellipse at center, #38815d 0%, #286448 54%, #1d4c3b 100%);
-  box-shadow:
-    inset 0 0 0 1px #719d80,
-    0 12px 30px #0006;
-  display: flex;
-  flex-direction: column;
-  transition: box-shadow 0.3s ease;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
 .table-ring {
   position: absolute;
-  inset: 15% 10%;
+  inset: 12% 14%;
   border: 1px solid #95c5a344;
   border-radius: 50%;
   pointer-events: none;
 }
 
-.opponent-strip {
+/* ---------- Menu (room code, direction, sound) ---------- */
+
+.game-menu-button {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 8;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #ffffff40;
+  background: #10261fdd;
+  color: #eef8f0;
+  display: grid;
+  place-items: center;
+}
+
+.game-menu-button svg {
+  width: 18px;
+}
+
+.game-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  background: #00000090;
+}
+
+.game-menu-panel {
+  width: min(280px, calc(100vw - 24px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  padding: 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.game-menu-close {
+  align-self: flex-end;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
+.game-menu-close svg {
+  width: 16px;
+}
+
+.game-menu-room {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.game-menu-mode {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.game-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.game-menu-actions .direction,
+.game-menu-actions .sound-toggle {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #ffffff30;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1d2b26;
+  color: #d9e9df;
+}
+
+.game-menu-actions .sound-toggle {
+  cursor: pointer;
+  border-color: #ffffff40;
+}
+
+.game-menu-actions .sound-toggle.active {
+  color: var(--yellow);
+}
+
+.game-menu-actions svg {
+  width: 16px;
+}
+
+.game-menu-actions b {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Seats around the table ---------- */
+
+.seats {
   position: relative;
   z-index: 2;
   display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  max-height: 60px;
-  overflow-y: auto;
-  padding: 8px 16px 2px;
-  -webkit-overflow-scrolling: touch;
+  gap: 6px;
+  min-width: 0;
 }
 
-.opponent {
-  flex: 0 0 auto;
+/* Side padding on the top row keeps seats centered and clear of the corner menu button. */
+.seats-top {
+  grid-area: top;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 6px 52px 0;
+}
+
+.seats-left {
+  grid-area: left;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding-left: 6px;
+}
+
+.seats-right {
+  grid-area: right;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  padding-right: 6px;
+}
+
+.seat {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px 6px 6px;
+  min-width: 0;
+}
+
+/* A teammate's hand that doesn't fit beside their name drops onto its own line. */
+.seats-top .seat {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.seats-left .seat,
+.seats-right .seat {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.seats-left .seat {
+  align-items: flex-start;
+}
+
+.seats-right .seat {
+  align-items: flex-end;
+}
+
+.seat-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px 4px 4px;
   border-radius: 999px;
   border: 2px solid transparent;
   background: #0000002e;
+  color: #fff;
   transition:
     border-color 0.25s ease,
-    background-color 0.25s ease,
-    opacity 0.25s ease;
-  color: #fff;
+    background-color 0.25s ease;
 }
 
-.opponent.active-turn {
+.seat.active-turn .seat-chip {
   border-color: var(--yellow);
   background: #00000055;
 }
 
-.opponent.same-team {
+.seat.same-team .seat-chip {
   background: #ffffff1a;
 }
 
-.opponent.opposing-team {
-  opacity: 0.8;
+/* Team accent matches the lobby columns: Team A blue, Team B red. */
+.seat.team-0 .seat-chip {
+  box-shadow: inset 0 -3px 0 var(--blue);
 }
 
-.opponent-avatar {
+.seat.team-1 .seat-chip {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.seat-avatar {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
@@ -578,35 +673,73 @@ button:not(:disabled):hover {
   font-weight: 800;
 }
 
-.opponent-info strong,
-.opponent-info small {
+.seat-info strong,
+.seat-info small {
   display: block;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
-.opponent-info strong {
-  font-size: 10px;
+.seat-info strong {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
 }
 
-.opponent-info small {
+.seat-info small {
   color: #c5dfcd;
-  font-size: 9px;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.seats-left .seat-info strong,
+.seats-right .seat-info strong {
+  max-width: 72px;
+}
+
+/* A teammate's face-up hand. Cards sit side by side and, when the row is full, squeeze
+ * together (each keeps its top-left corner symbol visible) instead of overflowing. */
+.mini-hand {
+  --mini-w: clamp(24px, calc(var(--card-w) * 0.5), 44px);
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.seats-left .mini-hand,
+.seats-right .mini-hand {
+  max-width: 112px;
+}
+
+/* ---------- Table centre: piles + turn status ---------- */
+
+.table-center {
+  grid-area: center;
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--card-w) * 0.2);
 }
 
 .center-pile {
-  position: relative;
-  z-index: 2;
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: calc(var(--card-w) * 0.3);
 }
 
 .deck-stack {
   position: relative;
-  width: 62px;
-  height: 88px;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.5);
   padding: 0;
   border: 0;
   background: transparent;
@@ -622,11 +755,11 @@ button:not(:disabled):hover {
   inset: 0;
   display: grid;
   place-items: center;
-  border: 4px solid #fff;
-  border-radius: 9px;
+  border: max(2px, calc(var(--card-w) * 0.06)) solid #fff;
+  border-radius: calc(var(--card-w) * 0.14);
   color: #fff;
   background: linear-gradient(135deg, #f23b47, #7138a2);
-  font-size: 14px;
+  font-size: calc(var(--card-w) * 0.24);
   font-weight: 900;
   transform: rotate(-8deg);
   box-shadow: 4px 4px 0 #162c24;
@@ -694,8 +827,8 @@ button:not(:disabled):hover {
   position: absolute;
   bottom: -8px;
   right: -8px;
-  width: 18px;
-  height: 18px;
+  width: clamp(14px, calc(var(--card-w) * 0.3), 22px);
+  height: clamp(14px, calc(var(--card-w) * 0.3), 22px);
   border-radius: 50%;
   border: 2px solid #101716;
 }
@@ -706,16 +839,27 @@ button:not(:disabled):hover {
 }
 
 .turn-status {
-  position: relative;
-  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding-bottom: 6px;
+  max-width: 100%;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #0000002e;
   color: #d4edda;
   font-size: 11px;
   text-align: center;
+}
+
+.turn-status .direction {
+  display: grid;
+  place-items: center;
+  color: #b8d6c1;
+}
+
+.turn-status .direction svg {
+  width: 13px;
 }
 
 .live-dot {
@@ -728,23 +872,55 @@ button:not(:disabled):hover {
   box-shadow: 0 0 0 3px #dcf6e830;
 }
 
+/* ---------- Player panel: fanned hand + action rail ---------- */
+
 .player-panel {
+  grid-area: panel;
   position: relative;
   z-index: 2;
-  padding: 0 18px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 0 10px 6px 14px;
+}
+
+.player-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: clamp(104px, 20vw, 156px);
+  padding-bottom: 4px;
 }
 
 .player-label {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 4px;
+  gap: 4px 6px;
   color: #d6e8da;
   font-size: 11px;
 }
 
+.team-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.team-tag.team-0 {
+  background: var(--blue);
+}
+
+.team-tag.team-1 {
+  background: var(--accent);
+}
+
 .uno-badge {
-  padding: 4px 10px;
+  padding: 3px 9px;
   border: 1px solid #ffffff30;
   border-radius: 999px;
   color: #f7d63c;
@@ -757,22 +933,40 @@ button:not(:disabled):hover {
 
 .hand {
   position: relative;
+  min-width: 0;
 }
 
 .card-hand {
+  /* Set from Hand.tsx: how many cards, and how many gaps between them. */
+  --n: 1;
+  --gaps: 1;
+  container-type: inline-size;
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  height: 108px;
-  padding: 0 8px;
+  /* Headroom above for the hover lift; room below because the outer cards of the
+   * fan drop under the baseline; the sides leave room for the rotated outer cards. */
+  padding: 16px calc(var(--card-w) * 0.45) calc(var(--card-w) * 0.4);
 }
 
 .card-slot {
   flex: 0 0 auto;
-  margin-left: -14px;
+  margin-left: calc(var(--card-w) * -0.3);
   transform-origin: bottom center;
   touch-action: none;
   cursor: grab;
+}
+
+/* Overlap grows with the hand so even 25 cards fit the width without scrolling. */
+@supports (width: 1cqw) {
+  .card-slot {
+    margin-left: calc(
+      -1 * min(
+          var(--card-w) * 0.78,
+          max(var(--card-w) * 0.3, (var(--n) * var(--card-w) - 100cqw + 8px) / var(--gaps))
+        )
+    );
+  }
 }
 
 .card-slot:first-child {
@@ -803,17 +997,19 @@ button:not(:disabled):hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 64px;
-  height: 96px;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.5);
   flex-shrink: 0;
   overflow: hidden;
-  border: 3px solid #fff;
-  border-radius: 9px;
+  border: max(2px, calc(var(--card-w) * 0.045)) solid #fff;
+  border-radius: calc(var(--card-w) * 0.14);
   color: #fff;
   background: var(--red);
-  padding: 4px;
+  padding: calc(var(--card-w) * 0.06);
   box-shadow: 0 5px 8px #10251c99;
-  transition: filter 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    filter 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .uno-card.uno-card-disabled {
@@ -840,11 +1036,11 @@ button:not(:disabled):hover {
 .card-oval {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 64px;
-  border: 2px solid #ffffffab;
+  width: calc(var(--card-w) * 0.66);
+  height: calc(var(--card-w) * 0.95);
+  border: max(1px, calc(var(--card-w) * 0.03)) solid #ffffffab;
   border-radius: 50%;
-  font-size: 22px;
+  font-size: calc(var(--card-w) * 0.34);
   font-weight: 900;
   font-style: italic;
   transform: rotate(-25deg);
@@ -857,82 +1053,78 @@ button:not(:disabled):hover {
 
 .card-corner {
   position: absolute;
-  top: 4px;
-  left: 6px;
-  font-size: 9px;
+  top: calc(var(--card-w) * 0.06);
+  left: calc(var(--card-w) * 0.09);
+  font-size: max(8px, calc(var(--card-w) * 0.14));
   font-weight: 900;
 }
 
 .card-corner-bottom {
   top: auto;
-  right: 6px;
-  bottom: 4px;
+  right: calc(var(--card-w) * 0.09);
+  bottom: calc(var(--card-w) * 0.06);
   left: auto;
   transform: rotate(180deg);
-}
-
-.uno-card-small {
-  width: 40px;
-  height: 60px;
-  border-width: 2px;
-  border-radius: 6px;
-  padding: 2px;
-}
-
-.uno-card-small .card-oval {
-  width: 26px;
-  height: 39px;
-  font-size: 14px;
-  border-width: 1px;
-}
-
-.uno-card-small .card-corner {
-  top: 3px;
-  left: 4px;
-  font-size: 7px;
-}
-
-.uno-card-small .card-corner-bottom {
-  right: 4px;
-  left: auto;
-  top: auto;
-  bottom: 3px;
 }
 
 .uno-card-back {
   background: linear-gradient(135deg, #f23b47, #7138a2);
   color: #fff;
   font-weight: 900;
-  font-size: 12px;
+  font-size: calc(var(--card-w) * 0.19);
   font-style: italic;
   letter-spacing: 1px;
 }
 
-/* ---------- Game controls ---------- */
+/* Teammate-hand cards: just a coloured tile with the corner symbol. */
+.uno-card-mini {
+  width: var(--mini-w, 24px);
+  height: calc(var(--mini-w, 24px) * 1.4);
+  flex: 0 1 var(--mini-w, 24px);
+  flex-shrink: 1;
+  min-width: 17px;
+  justify-content: flex-start;
+  padding: 0;
+  border-width: 2px;
+  border-radius: 4px;
+  box-shadow: 0 2px 3px #10251c99;
+}
+
+.uno-card-mini .card-corner {
+  top: 1px;
+  left: 2px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* ---------- Game controls (action rail) ---------- */
 
 .game-controls {
   display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .game-controls button {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 8px 14px;
+  padding: 8px 10px;
   border: 1px solid #ffffff35;
   border-radius: 999px;
   color: #eaf5eb;
   background: #1d4937;
   font-size: 11px;
   font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .game-controls button svg {
   width: 14px;
+  flex-shrink: 0;
 }
 
 .uno-button {
@@ -978,6 +1170,9 @@ button:not(:disabled):hover {
   gap: 0.75rem;
   align-items: stretch;
   min-width: 220px;
+  /* The swap-hands target list can outgrow a short landscape screen. */
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
 }
 
 .color-swatch-grid {
@@ -1007,35 +1202,6 @@ button:not(:disabled):hover {
 }
 .color-wild {
   background: #2b2d31;
-}
-
-/* ---------- Footer ---------- */
-
-.game-footer {
-  height: 26px;
-  padding: 0 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #8ca197;
-  font-size: 9px;
-  flex-shrink: 0;
-}
-
-.game-footer span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.game-footer svg {
-  width: 12px;
-  color: var(--yellow);
-}
-
-.mobile-game-menu-button,
-.mobile-game-menu-overlay {
-  display: none;
 }
 
 /* ---------- Rotate-device prompt (landscape-first, small screens only) ---------- */
@@ -1089,168 +1255,73 @@ button:not(:disabled):hover {
   z-index: 20;
 }
 
-/* ---------- Small screens ---------- */
+/* ---------- Short screens (landscape phones) ---------- */
 
-@media (max-width: 700px) {
-  .game-topbar {
-    display: none;
+@media (max-height: 430px) {
+  .seats-top {
+    padding-top: 4px;
   }
 
-  .mobile-game-menu-button {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 8;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    border-radius: 999px;
-    border: 1px solid #ffffff40;
-    background: #10261fdd;
-    color: #eef8f0;
-    display: grid;
-    place-items: center;
+  .seat-chip {
+    gap: 6px;
+    padding: 3px 10px 3px 3px;
   }
 
-  .mobile-game-menu-button svg {
-    width: 18px;
+  .seat-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 9px;
   }
 
-  .mobile-game-menu-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 15;
-    display: grid;
-    place-items: center;
-    background: #00000090;
+  .seat-info strong {
+    max-width: 96px;
+    font-size: 10.5px;
   }
 
-  .mobile-game-menu-panel {
-    width: min(280px, calc(100vw - 24px));
-    padding: 1rem;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
+  .player-panel {
+    padding-bottom: 4px;
   }
 
-  .mobile-game-menu-close {
-    align-self: flex-end;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    display: grid;
-    place-items: center;
-  }
-
-  .mobile-game-menu-close svg {
-    width: 16px;
-  }
-
-  .mobile-game-menu-room {
-    margin: 0;
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1.2px;
-  }
-
-  .mobile-game-menu-mode {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  .mobile-game-menu-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .mobile-game-menu-actions .direction,
-  .mobile-game-menu-actions .sound-toggle {
-    width: 100%;
-    min-height: 34px;
-    padding: 0 10px;
-    border: 1px solid #ffffff30;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #1d2b26;
-    color: #d9e9df;
-  }
-
-  .mobile-game-menu-actions .sound-toggle {
-    cursor: pointer;
-    border-color: #ffffff40;
-  }
-
-  .mobile-game-menu-actions .sound-toggle.active {
-    color: var(--yellow);
-  }
-
-  .mobile-game-menu-actions .direction svg,
-  .mobile-game-menu-actions .sound-toggle svg {
-    width: 16px;
-  }
-
-  .mobile-game-menu-actions .direction b,
-  .mobile-game-menu-actions .sound-toggle b {
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .game-board {
-    margin: 4px 6px 0;
-    border-radius: 24px;
-  }
-
-  .uno-card {
-    width: 52px;
-    height: 78px;
-  }
-
-  .card-oval {
-    width: 34px;
-    height: 52px;
-    font-size: 17px;
-  }
-
-  .card-hand {
-    height: 92px;
+  .game-controls button {
+    padding: 6px 10px;
   }
 }
 
-@media (max-height: 430px) {
-  .game-topbar {
-    height: 38px;
+@media (max-height: 340px) {
+  .turn-status {
+    padding: 3px 10px;
+    font-size: 10px;
+  }
+}
+
+/* Big screens: the cards grow, so the table text and buttons grow with them. */
+@media (min-height: 700px) {
+  .seat-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
   }
 
-  .game-footer {
-    height: 20px;
+  .seat-info strong {
+    max-width: 150px;
+    font-size: 14px;
   }
 
-  .game-title b {
-    font-size: 11px;
+  .seat-info small {
+    font-size: 12px;
   }
 
-  .opponent-strip {
-    max-height: 44px;
-    padding: 6px 12px 2px;
+  .turn-status,
+  .player-label {
+    font-size: 14px;
   }
 
-  .card-hand {
-    height: 78px;
+  .game-controls button {
+    padding: 10px 14px;
+    font-size: 14px;
   }
 
-  .uno-card {
-    width: 46px;
-    height: 68px;
+  .deck-count {
+    font-size: 12px;
   }
 }

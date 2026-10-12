@@ -32,10 +32,23 @@ export function buildGameView(game: any, room: any, forPlayerId: string): GameVi
   for (const [pid, hand] of Object.entries(handsObj)) handCounts[pid] = (hand as Card[]).length;
   const topCard = game.discardPile[game.discardPile.length - 1] ?? null;
 
+  // Team Mode: teammates see each other's hands (view-only). This is the only place a
+  // hand leaves the server for anyone but its owner — filter strictly by team.
+  const viewerTeam = room.players.find((p: any) => p.id === forPlayerId)?.teamId;
+  const teammateHands =
+    room.settings?.teamMode && (viewerTeam === 0 || viewerTeam === 1)
+      ? Object.fromEntries(
+          room.players
+            .filter((p: any) => p.id !== forPlayerId && p.teamId === viewerTeam)
+            .map((p: any) => [p.id, (handsObj[p.id] as Card[]) ?? []]),
+        )
+      : undefined;
+
   return {
     roomCode: game.roomCode,
     version: game.version,
     hand: (handsObj[forPlayerId] as Card[]) ?? [],
+    ...(teammateHands && { teammateHands }),
     handCounts,
     discardTop: topCard,
     activeColor: game.activeColor,

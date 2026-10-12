@@ -56,13 +56,14 @@ export interface CardProps {
    * the caller, since Hand wraps each card in a draggable motion element. */
   disabled?: boolean;
   faceDown?: boolean;
-  small?: boolean;
+  /** Compact tile showing only the corner symbol — used for a teammate's face-up hand. */
+  mini?: boolean;
 }
 
-export default function Card({ card, disabled, faceDown, small }: CardProps) {
+export default function Card({ card, disabled, faceDown, mini }: CardProps) {
   if (faceDown) {
     return (
-      <div className={`uno-card uno-card-back ${small ? 'uno-card-small' : ''}`} aria-hidden="true">
+      <div className={`uno-card uno-card-back ${mini ? 'uno-card-mini' : ''}`} aria-hidden="true">
         <span>UNO</span>
       </div>
     );
@@ -70,9 +71,20 @@ export default function Card({ card, disabled, faceDown, small }: CardProps) {
 
   const label = symbol(card);
 
+  if (mini) {
+    return (
+      <div
+        className={`uno-card uno-card-mini card-${card.color}`}
+        aria-label={`${describe(card)} ${card.color} card`}
+      >
+        <span className="card-corner">{label}</span>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`uno-card card-${card.color} ${small ? 'uno-card-small' : ''} ${disabled ? 'uno-card-disabled' : ''}`}
+      className={`uno-card card-${card.color} ${disabled ? 'uno-card-disabled' : ''}`}
       aria-label={`${describe(card)} ${card.color} card`}
     >
       <span className="card-corner">{label}</span>
