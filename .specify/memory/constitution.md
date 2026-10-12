@@ -10,7 +10,8 @@ card, draw, call Uno, choose color) is handled as one read-validate-write
 against the room's MongoDB document before it is broadcast; clients never
 compute game logic locally beyond optimistic UI. A player's hand is only
 ever sent to that player — other players receive counts, never card
-values. This prevents cheating in a casual friends-only game, keeps
+values — with one exception: in Team Mode a player also receives their
+teammates' hands (view-only, never an opponent's). This prevents cheating in a casual friends-only game, keeps
 clients simple, and means a server restart never loses game state because
 there is nothing else to keep in sync.
 
@@ -88,4 +89,4 @@ require updating this file with a version bump and a one-line rationale in
 the commit message. Any plan that deviates from a principle above must
 justify it in that plan's Complexity Tracking section.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-20 | **Last Amended**: 2026-09-20
+**Version**: 1.1.0 | **Ratified**: 2026-09-20 | **Last Amended**: 2026-10-12

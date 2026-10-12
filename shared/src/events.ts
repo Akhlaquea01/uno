@@ -89,6 +89,10 @@ export interface GameView {
   roomCode: string;
   version: number;
   hand: Card[];
+  /** Team Mode only: the viewer's teammates' hands (view-only), keyed by playerId.
+   * Never contains the viewer or anyone on the other team, and is absent outside
+   * Team Mode. */
+  teammateHands?: Record<string, Card[]>;
   handCounts: Record<string, number>;
   discardTop: Card | null;
   activeColor: Color;
