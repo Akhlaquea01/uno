@@ -407,7 +407,7 @@ button:not(:disabled):hover {
 .uno-game {
   /* Everything on the table scales from the viewport height: cards grow on tall screens
    * and shrink on short landscape phones with one rule instead of fixed size tiers. */
-  --card-w: clamp(40px, 15vh, 84px);
+  --card-w: clamp(40px, min(15vh, 11vw), 110px);
   position: relative;
   height: 100vh;
   height: 100svh;
@@ -425,7 +425,7 @@ button:not(:disabled):hover {
 
 @supports (height: 100svh) {
   .uno-game {
-    --card-w: clamp(40px, 15svh, 84px);
+    --card-w: clamp(40px, min(15svh, 11vw), 110px);
   }
 }
 
@@ -607,6 +607,12 @@ button:not(:disabled):hover {
   min-width: 0;
 }
 
+/* A teammate's hand that doesn't fit beside their name drops onto its own line. */
+.seats-top .seat {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .seats-left .seat,
 .seats-right .seat {
   flex-direction: column;
@@ -692,15 +698,15 @@ button:not(:disabled):hover {
   max-width: 72px;
 }
 
-/* A teammate's face-up hand. Cards sit side by side and, past ~14, squeeze together
- * (each keeps its top-left corner symbol visible) instead of overflowing the row. */
+/* A teammate's face-up hand. Cards sit side by side and, when the row is full, squeeze
+ * together (each keeps its top-left corner symbol visible) instead of overflowing. */
 .mini-hand {
-  --mini-w: max(24px, calc(var(--card-w) * 0.55));
+  --mini-w: clamp(24px, calc(var(--card-w) * 0.5), 44px);
   display: flex;
   align-items: center;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: calc(var(--mini-w) * 14);
+  max-width: 100%;
   overflow: hidden;
 }
 
@@ -939,8 +945,8 @@ button:not(:disabled):hover {
   justify-content: center;
   align-items: flex-end;
   /* Headroom above for the hover lift; room below because the outer cards of the
-   * fan drop under the baseline. */
-  padding: 16px 8px calc(var(--card-w) * 0.22);
+   * fan drop under the baseline; the sides leave room for the rotated outer cards. */
+  padding: 16px calc(var(--card-w) * 0.45) calc(var(--card-w) * 0.4);
 }
 
 .card-slot {
@@ -1285,5 +1291,37 @@ button:not(:disabled):hover {
   .turn-status {
     padding: 3px 10px;
     font-size: 10px;
+  }
+}
+
+/* Big screens: the cards grow, so the table text and buttons grow with them. */
+@media (min-height: 700px) {
+  .seat-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  .seat-info strong {
+    max-width: 150px;
+    font-size: 14px;
+  }
+
+  .seat-info small {
+    font-size: 12px;
+  }
+
+  .turn-status,
+  .player-label {
+    font-size: 14px;
+  }
+
+  .game-controls button {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .deck-count {
+    font-size: 12px;
   }
 }

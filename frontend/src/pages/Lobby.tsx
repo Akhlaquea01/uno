@@ -38,6 +38,12 @@ export default function Lobby() {
   const isEvenTeamSize = players.length >= 4 && players.length % 2 === 0;
   const teamsReady = isEvenTeamSize && teamACount === players.length / 2 && teamBCount === players.length / 2;
   const canStart = teamMode ? teamsReady : players.length >= 2;
+  const teamStartHint =
+    players.length < 4
+      ? 'Team Mode needs 4 or more players — or turn Team Mode off'
+      : players.length % 2 !== 0
+        ? 'Team Mode needs an even number of players — add one, or turn Team Mode off'
+        : 'Waiting for everyone to pick a team…';
   const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/room/${roomCode}/lobby` : '';
 
   const applySettings = () => {
@@ -74,7 +80,7 @@ export default function Lobby() {
             <p>
               {isEvenTeamSize
                 ? 'Pick your team'
-                : `Team mode needs an even number of players, 4 or more (${players.length} joined)`}
+                : `Team mode needs an even number of players, 4 or more (${players.length} joined). The host can turn Team Mode off to play individually.`}
             </p>
             <div className="team-columns">
               {([0, 1] as const).map((teamId) => (
@@ -187,7 +193,8 @@ export default function Lobby() {
               checked={settingsDraft.teamMode}
               onChange={(e) => setSettingsDraft({ ...settingsDraft, teamMode: e.target.checked })}
             />
-            Team Mode (even players only — 2v2, 3v3, ...; odd counts play individually)
+            Team Mode (even players only — 2v2, 3v3, ...). With an odd number of players, leave it off to play
+            individually.
           </label>
 
           <button type="button" className="btn-outline" onClick={applySettings}>
@@ -205,7 +212,7 @@ export default function Lobby() {
             {canStart
               ? 'Start game'
               : teamMode
-                ? 'Waiting for an even number of players, teams picked…'
+                ? teamStartHint
                 : 'Waiting for at least 2 players…'}
           </button>
         ) : (
